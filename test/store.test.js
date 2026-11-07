@@ -334,3 +334,14 @@ test('sorting by the time a recipe was last opened', () => {
   assert.deepEqual(titles({ sort: 'opened' }), ['D', 'C', 'B', 'A']);
   assert.deepEqual(titles({ sort: 'opened', openedAt, status: 'todo' }), ['B', 'A', 'D', 'C']);
 });
+
+test('Markdown in recipe lines: bold kept as bold, links as their text', () => {
+  assert.deepEqual(S.textSpans('Por eso **pelar éstos**. Así.'), [
+    { text: 'Por eso ', strong: false },
+    { text: 'pelar éstos', strong: true },
+    { text: '. Así.', strong: false },
+  ]);
+  assert.deepEqual(S.textSpans('Ver [Receta de ceviche](https://example.com/c) aquí'), [{ text: 'Ver Receta de ceviche aquí', strong: false }]);
+  assert.deepEqual(S.textSpans('2 * 3 jajka, 5 ** 2'), [{ text: '2 * 3 jajka, 5 ** 2', strong: false }]);
+  assert.deepEqual(S.textSpans(''), []);
+});

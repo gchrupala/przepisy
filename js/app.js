@@ -454,11 +454,14 @@ function recipeNotice(item) {
   return `<p class="notice">Na stronie nie znaleziono przepisu.${why} Możesz wpisać go sam.</p>`;
 }
 
+// A recipe line as HTML: escaped, with the bold of the site kept.
+const rich = (text) => S.textSpans(text).map((p) => (p.strong ? `<strong>${esc(p.text)}</strong>` : esc(p.text))).join('');
+
 function checklist(id, kind, sections) {
   let n = 0;
   return sections
     .map((s, g) => {
-      const head = s.name ? `<h3>${esc(s.name)}</h3>` : '';
+      const head = s.name ? `<h3>${rich(s.name)}</h3>` : '';
       const start = n + 1;
       const items = s.items
         .map((text, i) => {
@@ -466,8 +469,8 @@ function checklist(id, kind, sections) {
           const key = `${id}|${kind}|${g}|${i}`;
           const box = `<input type="checkbox" data-check="${esc(key)}"${ui.checked.has(key) ? ' checked' : ''}>`;
           return kind === 'i'
-            ? `<li><label class="tick">${box}<span>${esc(text)}</span></label></li>`
-            : `<li><label class="step">${box}<span class="step-num" aria-hidden="true">${n}</span><span>${esc(text)}</span></label></li>`;
+            ? `<li><label class="tick">${box}<span>${rich(text)}</span></label></li>`
+            : `<li><label class="step">${box}<span class="step-num" aria-hidden="true">${n}</span><span>${rich(text)}</span></label></li>`;
         })
         .join('');
       return `${head}<${kind === 'i' ? 'ul' : `ol start="${start}"`} class="checklist">${items}</${kind === 'i' ? 'ul' : 'ol'}>`;

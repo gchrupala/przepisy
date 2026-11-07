@@ -173,6 +173,21 @@ export function yieldsLabel(yields) {
 }
 
 // 45 -> "45 min", 90 -> "1 godz. 30 min", 180 -> "3 godz."
+// Some sites write Markdown in their recipe data. A line -> spans to show:
+// "**bold**" becomes { text, strong: true }, "[text](address)" just its text.
+export function textSpans(line) {
+  const s = String(line ?? '').replace(/\[([^\]]+)\]\((?:https?:\/\/|\/)[^)\s]*\)/g, '$1');
+  const out = [];
+  let last = 0;
+  for (const m of s.matchAll(/\*\*(?=\S)(.+?)\*\*/g)) {
+    if (m.index > last) out.push({ text: s.slice(last, m.index), strong: false });
+    out.push({ text: m[1], strong: true });
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) out.push({ text: s.slice(last), strong: false });
+  return out;
+}
+
 export function timeLabel(minutes) {
   if (!Number.isFinite(minutes) || minutes <= 0) return '';
   const h = Math.floor(minutes / 60);
