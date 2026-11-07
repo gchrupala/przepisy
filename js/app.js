@@ -31,7 +31,22 @@ let doc = S.loadDoc(storage);
 let saveFailed = !storage;
 
 const PREFS_KEY = 'przepisy:prefs';
-const prefs = { status: 'all', tag: '', ...readJson(PREFS_KEY) };
+const prefs = { status: 'all', tag: '', sort: 'added', ...readJson(PREFS_KEY) };
+
+// When each recipe was last opened on this device: { id: ms }. Kept apart
+// from the data, so opening a recipe does not start a sync.
+const OPENED_KEY = 'przepisy:opened';
+const openedAt = readJson(OPENED_KEY);
+
+function markOpened(id) {
+  openedAt[id] = Date.now();
+  for (const k of Object.keys(openedAt)) if (!doc.items.some((i) => i.id === k)) delete openedAt[k];
+  try {
+    storage?.setItem(OPENED_KEY, JSON.stringify(openedAt));
+  } catch {
+    // The order then lasts until the page closes.
+  }
+}
 
 const ui = {
   view: 'list', // 'list' | 'recipe' | 'settings'
@@ -339,7 +354,7 @@ function results() {
   const scoped = prefs.status === 'all' ? all : all.filter((i) => i.status === prefs.status);
   const tags = S.tagCounts(scoped);
   if (prefs.tag && !tags.some(([t]) => t === prefs.tag)) prefs.tag = '';
-  const items = S.filterItems(all, { query: ui.query, status: prefs.status, tag: prefs.tag });
+  const items = S.filterItems(all, { query: ui.query, status: prefs.status, tag: prefs.tag, sort: prefs.sort, openedAt });
   const pasted = pastedUrl();
   const known = pasted && S.findByUrl(doc, pasted);
 
@@ -352,6 +367,10 @@ function results() {
     `<button type="button" class="chip${on ? ' on' : ''}" aria-pressed="${on}" data-action="tag" data-value="${esc(value)}">${esc(label)} <span class="count">${count}</span></button>`;
   const tagChips = tags.map(([t, n]) => chip(t, `#${t}`, n, prefs.tag === t)).join('');
   const filters = tagChips ? `<div class="chips" aria-label="Filtry">${tagChips}</div>` : '';
+  const sortOption = (key, label) => `<option value="${key}"${prefs.sort === key ? ' selected' : ''}>${label}</option>`;
+  const sorter = all.length > 1
+    ? `<label class="sort">Kolejność <select id="sort" data-action="sort">${sortOption('added', 'ostatnio dodane')}${sortOption('opened', 'ostatnio otwierane')}</select></label>`
+    : '';
 
   let body;
   if (items.length) body = `<ul class="items">${items.map(itemView).join('')}</ul>`;
@@ -362,7 +381,7 @@ function results() {
   const addHint = pasted
     ? `<p class="add-hint">${known ? 'Ten przepis już jest zapisany. „Dodaj” go otworzy.' : 'To jest link. Naciśnij „Dodaj”, żeby zapisać przepis.'}</p>`
     : '';
-  return `${addHint}<div class="tabs" role="tablist">${tabs}</div>${filters}${body}`;
+  return `${addHint}<div class="tabs" role="tablist">${tabs}</div>${filters}${sorter}${body}`;
 }
 
 // While typing in the search field only the results change, so the field
@@ -510,6 +529,7 @@ function recipeView(item) {
 }
 
 function openRecipe(id) {
+  markOpened(id);
   ui.view = 'recipe';
   ui.recipeId = id;
   pushNav('recipe', { id });
@@ -1145,6 +1165,12 @@ app.addEventListener('change', (e) => {
   if (key) {
     if (e.target.checked) ui.checked.add(key);
     else ui.checked.delete(key);
+    return;
+  }
+  if (e.target.dataset.action === 'sort') {
+    prefs.sort = e.target.value === 'opened' ? 'opened' : 'added';
+    savePrefs();
+    renderResults();
     return;
   }
   if (e.target.dataset.action === 'import' && e.target.files?.[0]) importDoc(e.target.files[0]);

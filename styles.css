@@ -312,6 +312,24 @@ textarea {
 
 /* ---------- list ---------- */
 
+.sort {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.sort select {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.88rem;
+}
+
 .items {
   margin: 8px 0 0;
   padding: 0;

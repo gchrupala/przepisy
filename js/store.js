@@ -406,11 +406,12 @@ function haystack(item) {
 // "pomidory" finds "pomidorów" and "cukinia" finds "cukinie".
 const stem = (w) => (w.length >= 5 ? w.slice(0, -1) : w);
 
-// The recipes that match the filters, newest first (tried ones by the
-// time they were tried). query: words that must all occur, in any field
-// including the ingredients; "#tag" requires the tag. status: 'todo' |
-// 'done' | 'all'.
-export function filterItems(items, { query = '', status = 'all', tag = '' } = {}) {
+// The recipes that match the filters. query: words that must all occur,
+// in any field including the ingredients; "#tag" requires the tag.
+// status: 'todo' | 'done' | 'all'. sort: 'added' (newest first; tried ones
+// by the time they were tried) or 'opened' (by openedAt, { id: ms }, most
+// recent first; recipes never opened after them, newest first).
+export function filterItems(items, { query = '', status = 'all', tag = '', sort = 'added', openedAt = {} } = {}) {
   const words = [];
   const tags = tag ? [tag] : [];
   for (const w of String(query).trim().split(/\s+/).filter(Boolean)) {
@@ -424,7 +425,8 @@ export function filterItems(items, { query = '', status = 'all', tag = '' } = {}
       (!words.length || ((h) => words.every((w) => h.includes(w)))(haystack(i))),
   );
   const when = (i) => (status === 'done' ? (i.doneAt ?? i.addedAt) : i.addedAt);
-  return out.sort((a, b) => when(b) - when(a) || (a.id < b.id ? 1 : -1));
+  const opened = (i) => (sort === 'opened' && Number.isFinite(openedAt[i.id]) ? openedAt[i.id] : -Infinity);
+  return out.sort((a, b) => opened(b) - opened(a) || when(b) - when(a) || (a.id < b.id ? 1 : -1));
 }
 
 // ---------- reading, checking and saving the document ----------

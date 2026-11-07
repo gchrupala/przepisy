@@ -320,3 +320,17 @@ test('parseDoc keeps recipes without a page but not items without an address fie
   const doc = S.parseDoc({ items: [{ id: 'a', url: '' }, { id: 'b' }, { id: 'c', url: null }], tombstones: {} });
   assert.deepEqual(doc.items.map((i) => i.id), ['a']);
 });
+
+test('sorting by the time a recipe was last opened', () => {
+  const doc = S.emptyDoc();
+  const a = S.addItem(doc, { url: 'https://example.com/a', title: 'A' }, min(0), rnd).item;
+  const b = S.addItem(doc, { url: 'https://example.com/b', title: 'B' }, min(1), rnd).item;
+  S.addItem(doc, { url: 'https://example.com/c', title: 'C' }, min(2), rnd);
+  S.addItem(doc, { url: 'https://example.com/d', title: 'D' }, min(3), rnd);
+  const titles = (opts) => S.filterItems(doc.items, opts).map(S.titleOf);
+  const openedAt = { [a.id]: min(10), [b.id]: min(20), gone: min(30) };
+  assert.deepEqual(titles({ openedAt }), ['D', 'C', 'B', 'A']);
+  assert.deepEqual(titles({ sort: 'opened', openedAt }), ['B', 'A', 'D', 'C']);
+  assert.deepEqual(titles({ sort: 'opened' }), ['D', 'C', 'B', 'A']);
+  assert.deepEqual(titles({ sort: 'opened', openedAt, status: 'todo' }), ['B', 'A', 'D', 'C']);
+});
