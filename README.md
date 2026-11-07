@@ -7,6 +7,7 @@ Adres: `https://gchrupala.github.io/przepisy/` (po włączeniu GitHub Pages: Set
 ## Co robi
 
 - **Dodawanie.** Android: po instalacji Przepisy są na liście „Udostępnij”. Komputer: przycisk „+ Przepisy” na pasku zakładek albo wklejenie linku w pole wyszukiwania. iPhone: skrót w aplikacji Skróty (instrukcje w ustawieniach).
+- **Własne przepisy.** Przycisk „+” na liście tworzy przepis bez strony: tytuł, porcje, składniki i kroki wpisuje się ręcznie. Adres można dopisać później.
 - **Przepis.** Widok przepisu pokazuje zdjęcie, liczbę osób, czas, składniki i kroki. Składniki i kroki można odhaczać w trakcie gotowania; przycisk „Nie wygaszaj ekranu” trzyma ekran włączony. Przepis da się poprawić albo wpisać ręcznie („Popraw przepis”); poprawka ma pierwszeństwo przed wyciągiem ze strony i można do niego wrócić.
 - **Porządkowanie i szukanie.** Zakładki „Wszystkie”, „Do wypróbowania”, „Wypróbowane”, tagi, notatka. Szukanie po tytule, serwisie, tagach, notatce i składnikach, bez polskich znaków i z grubsza bez końcówek („pomidory” znajdzie „pomidorów”).
 

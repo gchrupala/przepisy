@@ -284,3 +284,39 @@ test('renaming and removing tags', () => {
   S.renameTag(doc, 'wege', '', min(2));
   assert.deepEqual(doc.items[0].tags, ['ciasta']);
 });
+
+test('a recipe typed in by hand without a page', () => {
+  const doc = S.emptyDoc();
+  const item = S.addManual(doc, { title: ' Qaliye ', tags: 'ryba' }, min(0), rnd);
+  assert.equal(item.url, '');
+  assert.equal(item.title, 'Qaliye');
+  assert.equal(S.isBlank(item), false);
+  assert.equal(S.waitingForMeta(doc), false);
+  S.editRecipe(doc, item.id, { yields: '2', ingredients: '300 g krewetek', steps: '1. Usmażyć cebulę.' }, min(1));
+  assert.equal(S.recipeSource(item), 'hand');
+  assert.deepEqual(S.recipeOf(item).ingredients, [{ name: '', items: ['300 g krewetek'] }]);
+  assert.equal(S.siteOf(item), '');
+  assert.equal(S.filterItems(doc.items, { query: 'krewetek' }).length, 1);
+
+  // It survives saving and merging, and does not merge with other such recipes.
+  const other = S.addManual(S.emptyDoc(), {}, min(2), rnd);
+  assert.equal(S.titleOf(other), 'Bez tytułu');
+  assert.equal(S.isBlank(other), true);
+  const merged = S.mergeDocs(JSON.parse(JSON.stringify(doc)), { items: [other], tombstones: {} });
+  assert.deepEqual(merged.items.map((i) => i.id), [item.id, other.id]);
+  assert.deepEqual(merged.items[0], item);
+
+  // An address can be added later, and taken away again.
+  S.updateItem(doc, item.id, { url: 'nie link' }, min(3));
+  assert.equal(item.url, '');
+  S.updateItem(doc, item.id, { url: 'https://example.com/qaliye' }, min(4));
+  assert.equal(item.url, 'https://example.com/qaliye');
+  assert.equal(S.waitingForMeta(doc), true);
+  S.updateItem(doc, item.id, { url: ' ' }, min(5));
+  assert.equal(item.url, '');
+});
+
+test('parseDoc keeps recipes without a page but not items without an address field', () => {
+  const doc = S.parseDoc({ items: [{ id: 'a', url: '' }, { id: 'b' }, { id: 'c', url: null }], tombstones: {} });
+  assert.deepEqual(doc.items.map((i) => i.id), ['a']);
+});

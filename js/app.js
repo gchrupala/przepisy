@@ -22,6 +22,7 @@ const ICON = {
   close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   pot: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6Z"/><path d="M2 10h20M10 7h4M9 4c0 1 1 1 1 2M14 4c0 1 1 1 1 2"/></svg>',
   out: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M18 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   sun: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
 };
 
@@ -40,6 +41,7 @@ const ui = {
   editMode: 'item', // 'item' (title, tags, note) | 'recipe' (the recipe itself)
   editIntro: '', // text above the edit form, e.g. after sharing
   editBase: null, // the recipe form as it was when opened
+  editNew: false, // a new recipe without a page: it goes when closed empty
   checked: new Set(), // ingredients and steps ticked off while cooking
   wake: null, // the screen wake lock while it is held
   wantWake: false,
@@ -311,7 +313,7 @@ function notices() {
 function listView() {
   return `<header class="bar">
       <h1>Przepisy</h1>
-      <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="settings" aria-label="Ustawienia" title="Ustawienia">${ICON.gear}</button></div>
+      <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="new-recipe" aria-label="Wpisz własny przepis" title="Wpisz własny przepis">${ICON.plus}</button><button class="icon-btn" type="button" data-action="settings" aria-label="Ustawienia" title="Ustawienia">${ICON.gear}</button></div>
     </header>
     ${notices()}
     <form class="search" id="search-form" role="search">
@@ -379,6 +381,7 @@ const imageTag = (item, cls) =>
 // What the list says about a recipe that has none yet.
 function recipeState(item) {
   if (S.recipeOf(item)) return '';
+  if (!item.url) return 'bez treści';
   if (!item.meta) return 'czeka na przepis';
   return item.meta.error ? 'nie udało się pobrać' : 'bez przepisu';
 }
@@ -386,7 +389,7 @@ function recipeState(item) {
 function itemView(item) {
   const recipe = S.recipeOf(item);
   const done = item.status === 'done';
-  const info = [esc(S.siteOf(item)), esc(factsOf(recipe)), recipeState(item), done ? 'wypróbowany' : ''].filter(Boolean).join(' · ');
+  const info = [esc(item.url ? S.siteOf(item) : 'własny przepis'), esc(factsOf(recipe)), recipeState(item), done ? 'wypróbowany' : ''].filter(Boolean).join(' · ');
   const tags = item.tags.length
     ? `<div class="item-tags">${item.tags.map((t) => `<button type="button" class="tag" data-action="tag" data-value="${esc(t)}">#${esc(t)}</button>`).join('')}</div>`
     : '';
@@ -405,7 +408,7 @@ function itemView(item) {
 function emptyHelp() {
   return `<div class="empty help">
     <p><strong>Nie ma jeszcze przepisów.</strong></p>
-    <p>Udostępnij stronę z przepisem z innej aplikacji albo wklej link w pole powyżej. Aplikacja zapisze adres, a GitHub wyciągnie ze strony porcje, składniki i kroki. Sposoby dodawania i połączenie z GitHubem są w <button type="button" class="link" data-action="settings">ustawieniach</button>.</p>
+    <p>Udostępnij stronę z przepisem z innej aplikacji albo wklej link w pole powyżej. Aplikacja zapisze adres, a GitHub wyciągnie ze strony porcje, składniki i kroki. Przepis bez strony wpiszesz przyciskiem +. Sposoby dodawania i połączenie z GitHubem są w <button type="button" class="link" data-action="settings">ustawieniach</button>.</p>
   </div>`;
 }
 
@@ -418,6 +421,7 @@ function recipeNotice(item) {
     return '<p class="notice">Przepis ze strony jest ukryty. <button type="button" class="link" data-action="recipe-reset">Pokaż go znowu</button></p>';
   }
   if (recipe) return '';
+  if (!item.url) return '<p class="notice">Ten przepis jest jeszcze pusty. <button type="button" class="link" data-action="edit-recipe">Wpisz go</button></p>';
   if (!meta) {
     return syncConfig
       ? '<p class="notice">Przepis pojawi się za minutę lub dwie, gdy GitHub pobierze stronę.</p>'
@@ -457,6 +461,7 @@ const SOURCE_NOTE = {
   claude: 'Przepis odczytany z tekstu strony przez model Claude; może mieć błędy.',
   mistral: 'Przepis odczytany z tekstu strony przez model Mistral; może mieć błędy.',
   hand: 'Przepis poprawiony ręcznie.',
+  own: 'Przepis wpisany ręcznie.',
 };
 
 function recipeView(item) {
@@ -476,7 +481,10 @@ function recipeView(item) {
     'wakeLock' in navigator && hasContent
       ? `<button class="btn${ui.wake ? ' on' : ''}" type="button" data-action="wake" aria-pressed="${Boolean(ui.wake)}">${ICON.sun} Nie wygaszaj ekranu</button>`
       : '';
-  const source = SOURCE_NOTE[S.recipeSource(item)];
+  const source = SOURCE_NOTE[item.url ? S.recipeSource(item) : recipe && 'own'];
+  const origin = item.url
+    ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(S.siteOf(item))} ${ICON.out}</a>${author}`
+    : 'Własny przepis';
   return `<header class="bar">
       <button class="icon-btn" type="button" data-action="back" aria-label="Wróć" title="Wróć">${ICON.back}</button>
       <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="edit" aria-label="Tytuł, tagi i notatka" title="Tytuł, tagi i notatka">${ICON.edit}</button></div>
@@ -485,7 +493,7 @@ function recipeView(item) {
     <article class="recipe" data-id="${esc(item.id)}">
       ${imageTag(item, 'hero')}
       <h1 class="recipe-title">${esc(S.titleOf(item))}</h1>
-      <p class="recipe-source"><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(S.siteOf(item))} ${ICON.out}</a>${author}</p>
+      <p class="recipe-source">${origin}</p>
       ${facts ? `<p class="recipe-facts">${esc(facts)}</p>` : ''}
       ${tags}
       ${item.note ? `<p class="item-note">${esc(item.note)}</p>` : ''}
@@ -550,7 +558,8 @@ function renderSheet() {
   sheet.innerHTML = ui.editMode === 'recipe' ? recipeForm(item) : itemForm(item);
   if (!sheet.open) {
     sheet.showModal();
-    if (ui.editIntro) sheet.querySelector('#f-tags')?.focus();
+    if (ui.editNew) sheet.querySelector('#r-title')?.focus();
+    else if (ui.editIntro) sheet.querySelector('#f-tags')?.focus();
     else sheet.querySelector('.sheet-head button')?.focus();
   }
 }
@@ -569,17 +578,17 @@ function itemForm(item) {
       <h2>${ui.editIntro ? esc(ui.editIntro) : 'Edycja'}</h2>
       <button type="button" class="icon-btn small" data-action="sheet-close" aria-label="Zamknij">${ICON.close}</button>
     </div>
-    <a class="sheet-link" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(S.prettyUrl(item.url))}</a>
-    ${ui.editIntro && !item.meta ? `<p class="field-note">${syncConfig ? 'Porcje, składniki i kroki pojawią się po synchronizacji, gdy GitHub pobierze stronę.' : 'Bez połączenia z GitHubem przepis trzeba wpisać samemu.'}</p>` : ''}
+    ${item.url ? `<a class="sheet-link" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(S.prettyUrl(item.url))}</a>` : ''}
+    ${ui.editIntro && item.url && !item.meta ? `<p class="field-note">${syncConfig ? 'Porcje, składniki i kroki pojawią się po synchronizacji, gdy GitHub pobierze stronę.' : 'Bez połączenia z GitHubem przepis trzeba wpisać samemu.'}</p>` : ''}
     <label for="f-title">Tytuł</label>
-    <input id="f-title" name="title" type="text" value="${esc(item.title)}" placeholder="${esc(item.meta?.title || S.prettyUrl(item.url))}">
+    <input id="f-title" name="title" type="text" value="${esc(item.title)}" placeholder="${esc(item.meta?.title || (item.url ? S.prettyUrl(item.url) : ''))}">
     ${page}
     <label for="f-tags">Tagi <span class="hint">(oddzielone przecinkami)</span></label>
     <input id="f-tags" name="tags" type="text" value="${esc(item.tags.join(', '))}" autocapitalize="off" spellcheck="false">
     ${suggestions}
     <label for="f-note">Notatka</label>
     <textarea id="f-note" name="note" rows="3">${esc(item.note)}</textarea>
-    <label for="f-url">Adres</label>
+    <label for="f-url">Adres${item.url ? '' : ' <span class="hint">(strona z przepisem, jeśli jest)</span>'}</label>
     <input id="f-url" name="url" type="url" value="${esc(item.url)}" autocapitalize="off" spellcheck="false">
     <label class="check-row"><input type="checkbox" name="done"${item.status === 'done' ? ' checked' : ''}> Wypróbowany</label>
     <div class="sheet-actions">
@@ -598,6 +607,8 @@ function recipeForm(item) {
       <button type="button" class="icon-btn small" data-action="sheet-close" aria-label="Zamknij">${ICON.close}</button>
     </div>
     <p class="field-note">Jeden składnik albo krok w wierszu. Wiersz zaczynający się od # to nagłówek części, np. „# Ciasto”.</p>
+    ${item.url ? '' : `<label for="r-title">Tytuł</label>
+    <input id="r-title" name="title" type="text" value="${esc(item.title)}">`}
     <label for="r-yields">Dla ilu osób</label>
     <input id="r-yields" name="yields" type="text" value="${esc(f.yields)}" placeholder="np. 4 albo „około 20 pierogów”">
     <label for="r-ingredients">Składniki</label>
@@ -611,12 +622,13 @@ function recipeForm(item) {
   </form>`;
 }
 
-function openEdit(id, mode = 'item', intro = '') {
+function openEdit(id, mode = 'item', intro = '', isNew = false) {
   ui.editId = id;
   ui.editMode = mode;
   ui.editIntro = intro;
   ui.editBase = mode === 'recipe' ? S.recipeToForm(S.recipeOf(itemById(id))) : null;
   ui.confirmDelete = false;
+  ui.editNew = isNew;
   pushNav('edit');
   render();
 }
@@ -627,11 +639,11 @@ function saveSheet() {
     const form = sheet.querySelector('#recipe-form');
     if (!form) return;
     const f = new FormData(form);
+    if (f.has('title')) S.updateItem(doc, ui.editId, { title: f.get('title') }, Date.now());
     const typed = { yields: f.get('yields'), ingredients: f.get('ingredients'), steps: f.get('steps') };
     // Unchanged: nothing to save, even when the recipe from the page
     // arrived while the form was open.
-    if (S.stableJson(typed) === S.stableJson(ui.editBase)) return;
-    S.editRecipe(doc, ui.editId, typed, Date.now());
+    if (S.stableJson(typed) !== S.stableJson(ui.editBase)) S.editRecipe(doc, ui.editId, typed, Date.now());
     persist();
     return;
   }
@@ -654,6 +666,17 @@ function saveSheet() {
 }
 
 function closeSheet() {
+  // A new recipe without a page closed before anything was typed goes.
+  const item = ui.editNew && ui.editId && itemById(ui.editId);
+  ui.editNew = false;
+  if (item && S.isBlank(item)) {
+    S.deleteItem(doc, item.id, Date.now());
+    persist();
+    ui.editIntro = '';
+    ui.editBase = null;
+    goHome();
+    return;
+  }
   ui.editId = null;
   ui.editIntro = '';
   ui.editBase = null;
@@ -810,6 +833,12 @@ window.addEventListener('popstate', () => {
   const state = history.state ?? {};
   const screen = state.screen ?? 'list';
   if (screen !== 'edit' && ui.editId) {
+    const item = ui.editNew && itemById(ui.editId);
+    if (item && S.isBlank(item)) {
+      S.deleteItem(doc, item.id, Date.now());
+      persist();
+    }
+    ui.editNew = false;
     ui.editId = null;
     ui.editIntro = '';
     ui.editBase = null;
@@ -877,6 +906,14 @@ function addLink(input, { fromShare = false } = {}) {
     toast('Zapisano.', 'Otwórz', () => openRecipe(res.item.id));
   }
   return res;
+}
+
+// A recipe without a page: it opens with the recipe form.
+function addManual() {
+  const item = S.addManual(doc, {}, Date.now());
+  ui.query = '';
+  openRecipe(item.id);
+  openEdit(item.id, 'recipe', '', true);
 }
 
 // Recipes shared from other apps (Web Share Target, manifest) and from the
@@ -991,6 +1028,9 @@ function onClick(e) {
       break;
     case 'open':
       openRecipe(id);
+      break;
+    case 'new-recipe':
+      addManual();
       break;
     case 'toggle':
       if (S.toggleDone(doc, id, Date.now())) {

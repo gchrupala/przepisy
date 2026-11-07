@@ -5,7 +5,8 @@
 // The whole state is one document, the same one that is synced:
 //   { przepisy: 1, items: [Item], tombstones: { id: deletedAt } }
 // Item:
-//   id, url, title (typed or shared, may be ''), note, tags [string],
+//   id, url ('' for a recipe typed in by hand without a page), title (typed
+//   or shared, may be ''), note, tags [string],
 //   status ('todo' | 'done' = tried), addedAt, updatedAt, doneAt (ms or null),
 //   recipe (optional): the recipe as corrected by hand; shown instead of
 //     meta.recipe,
@@ -230,7 +231,7 @@ export function editRecipe(doc, id, form, now) {
 
 // ---------- titles for display ----------
 
-export const titleOf = (item) => item.title || item.meta?.title || prettyUrl(item.url);
+export const titleOf = (item) => item.title || item.meta?.title || (item.url ? prettyUrl(item.url) : 'Bez tytułu');
 export const siteOf = (item) => item.meta?.site || domainOf(item.url);
 
 export function prettyUrl(url) {
@@ -284,6 +285,30 @@ export function addItem(doc, { url, title = '', note = '', tags = [] }, now, ran
   return { item, existed: false };
 }
 
+// Adds a recipe without a page, typed in by hand. Returns the item.
+export function addManual(doc, { title = '', note = '', tags = [], recipe = null } = {}, now, random) {
+  const item = {
+    id: newId(now, random),
+    url: '',
+    title: String(title ?? '').trim().slice(0, 300),
+    note: String(note ?? '').slice(0, MAX_TEXT),
+    tags: parseTags(tags),
+    status: 'todo',
+    addedAt: now,
+    updatedAt: now,
+    doneAt: null,
+  };
+  const r = parseRecipe(recipe);
+  if (r) item.recipe = r;
+  doc.items.push(item);
+  return item;
+}
+
+// A recipe without a page and with nothing typed in yet (a new one that
+// was closed at once).
+export const isBlank = (item) =>
+  !item.url && !item.title && !item.note && !item.tags.length && !(item.recipe && parseRecipe(item.recipe));
+
 // Changes the fields in patch that differ; stamps updatedAt when anything
 // changed. patch.recipe = null removes the correction. Returns the item or
 // null.
@@ -294,7 +319,8 @@ export function updateItem(doc, id, patch, now) {
   if ('title' in patch) next.title = String(patch.title ?? '').trim().slice(0, 300);
   if ('note' in patch) next.note = String(patch.note ?? '').slice(0, MAX_TEXT);
   if ('tags' in patch) next.tags = parseTags(patch.tags);
-  if ('url' in patch) next.url = cleanUrl(patch.url) ?? item.url;
+  // An empty address makes it a recipe without a page; a wrong one is ignored.
+  if ('url' in patch) next.url = String(patch.url ?? '').trim() ? (cleanUrl(patch.url) ?? item.url) : '';
   if ('status' in patch && STATUSES.includes(patch.status)) {
     next.status = patch.status;
     next.doneAt = patch.status === 'done' ? (item.status === 'done' ? item.doneAt : now) : null;
@@ -421,8 +447,8 @@ function parseMeta(m) {
 
 function parseItem(x) {
   if (!isObj(x) || typeof x.id !== 'string' || !x.id) return null;
-  const url = cleanUrl(x.url);
-  if (!url) return null;
+  const url = x.url === '' ? '' : cleanUrl(x.url);
+  if (url === null) return null;
   const addedAt = num(x.addedAt) ?? num(x.updatedAt) ?? 0;
   const item = {
     id: x.id,
@@ -561,4 +587,4 @@ export function stableJson(value) {
 }
 
 // Recipes still waiting for the Action.
-export const waitingForMeta = (doc) => doc.items.some((i) => !i.meta);
+export const waitingForMeta = (doc) => doc.items.some((i) => i.url && !i.meta);
