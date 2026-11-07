@@ -143,11 +143,12 @@ export function parseRecipe(x) {
 // The recipe to show: corrected by hand, else the one from the page.
 export const recipeOf = (item) => item.recipe ?? item.meta?.recipe ?? null;
 
-// Where the recipe shown comes from: 'hand' | 'schema' | 'claude' | null.
+// Where the recipe shown comes from: 'hand' | 'schema' | 'claude' |
+// 'mistral' | null.
 export function recipeSource(item) {
   if (item.recipe) return 'hand';
   if (!item.meta?.recipe) return null;
-  return item.meta.via === 'claude' ? 'claude' : 'schema';
+  return ['claude', 'mistral'].includes(item.meta.via) ? item.meta.via : 'schema';
 }
 
 // "4", "4 porcje", "dla 4 osób", "4-6 servings", "serves 4" -> { min, max };

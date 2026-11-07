@@ -114,6 +114,7 @@ test('correcting a recipe by hand, and going back to the page recipe', () => {
   item.meta = { fetchedAt: min(1), via: 'schema', recipe: PAGE_RECIPE };
   assert.equal(S.recipeOf(item), PAGE_RECIPE);
   assert.equal(S.recipeSource(item), 'schema');
+  assert.equal(S.recipeSource({ meta: { ...item.meta, via: 'mistral' } }), 'mistral');
 
   // The form unchanged: no correction, nothing changes.
   S.editRecipe(doc, item.id, S.recipeToForm(PAGE_RECIPE), min(2));

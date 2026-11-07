@@ -427,7 +427,7 @@ function recipeNotice(item) {
     const again = (meta.attempts ?? 1) < 3 ? ' GitHub spróbuje jeszcze raz za dzień.' : '';
     return `<p class="notice">Nie udało się pobrać strony (${esc(meta.error)}).${again} Możesz wpisać przepis sam.</p>`;
   }
-  const why = meta.via === 'page' ? ' Strona nie ma danych przepisu w kodzie, a odczyt tekstu przez Claude jest wyłączony (brak klucza w repozytorium).' : '';
+  const why = meta.via === 'page' ? ' Strona nie ma danych przepisu w kodzie, a odczyt tekstu przez model językowy jest wyłączony (brak klucza w repozytorium).' : '';
   return `<p class="notice">Na stronie nie znaleziono przepisu.${why} Możesz wpisać go sam.</p>`;
 }
 
@@ -455,6 +455,7 @@ function checklist(id, kind, sections) {
 const SOURCE_NOTE = {
   schema: 'Przepis z danych na stronie.',
   claude: 'Przepis odczytany z tekstu strony przez model Claude; może mieć błędy.',
+  mistral: 'Przepis odczytany z tekstu strony przez model Mistral; może mieć błędy.',
   hand: 'Przepis poprawiony ręcznie.',
 };
 
@@ -692,7 +693,7 @@ function settingsView() {
     </section>
     <section>
       <h2>Skąd się bierze przepis</h2>
-      <p>Przeglądarka nie może pobierać cudzych stron, więc robi to GitHub Action w repozytorium z danymi, po każdej synchronizacji. Większość stron z przepisami ma w kodzie dane przepisu (schema.org); wtedy porcje, składniki i kroki są takie jak na stronie. Inne strony czyta model Claude, jeśli w repozytorium jest sekret <code>ANTHROPIC_API_KEY</code>.</p>
+      <p>Przeglądarka nie może pobierać cudzych stron, więc robi to GitHub Action w repozytorium z danymi, po każdej synchronizacji. Większość stron z przepisami ma w kodzie dane przepisu (schema.org); wtedy porcje, składniki i kroki są takie jak na stronie. Inne strony czyta model językowy: Claude, jeśli w repozytorium jest sekret <code>ANTHROPIC_API_KEY</code>, a bez niego Mistral, jeśli jest sekret <code>MISTRAL_API_KEY</code>.</p>
       <p class="field-note">Strony za logowaniem (Instagram, TikTok, część serwisów) zwykle się nie pobiorą. Taki przepis można wpisać samemu: „Wpisz przepis” w widoku przepisu.</p>
     </section>
     ${tags.length ? tagsSection(tags) : ''}

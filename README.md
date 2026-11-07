@@ -15,7 +15,7 @@ Adres: `https://gchrupala.github.io/przepisy/` (po włączeniu GitHub Pages: Set
 Przeglądarka nie może pobierać cudzych stron (CORS), więc robi to workflow `.github/workflows/przepisy-recipes.yml` w repozytorium z danymi (`gchrupala/app-data`), po każdej synchronizacji i raz dziennie:
 
 1. Dane schema.org na stronie, przez bibliotekę [recipe-scrapers](https://github.com/hhursev/recipe-scrapers). Ma je większość serwisów z przepisami.
-2. Gdy ich brak lub są niepełne, a w repozytorium jest sekret `ANTHROPIC_API_KEY`: tekst strony czyta model Claude (domyślnie `claude-opus-5-5`; zmienna repozytorium `PRZEPISY_MODEL` zmienia model).
+2. Gdy ich brak lub są niepełne: tekst strony czyta model językowy. Claude, gdy w repozytorium jest sekret `ANTHROPIC_API_KEY` (domyślnie `claude-opus-5-5`, zmienna `PRZEPISY_MODEL`); bez niego Mistral, gdy jest sekret `MISTRAL_API_KEY` (domyślnie `mistral-small-latest`, zmienna `PRZEPISY_MISTRAL_MODEL`). Bez żadnego klucza zostają tylko strony z danymi schema.org.
 
 Wynik trafia do pola `meta` przepisu; aplikacja ma go po następnej synchronizacji (sama sprawdza kilka razy przez kilka minut po dodaniu). Strony za logowaniem (Instagram, TikTok) zwykle się nie pobiorą.
 

@@ -3,7 +3,7 @@
 // Bump VERSION with every change to the app files. The browser then installs
 // this worker again with the new files, and the page reloads into them
 // (see the controllerchange handler in js/app.js).
-const VERSION = 'v1';
+const VERSION = 'v2';
 const PREFIX = 'przepisy-app-';
 const APP_CACHE = `${PREFIX}${VERSION}`;
 const APP_FILES = [
