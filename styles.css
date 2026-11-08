@@ -134,6 +134,11 @@ textarea {
   height: 18px;
 }
 
+.icon-btn.wake-on {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
 .sync-ok {
   color: var(--accent);
 }

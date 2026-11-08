@@ -533,7 +533,7 @@ function recipeView(item) {
   const hasContent = recipe && (recipe.ingredients.length || recipe.steps.length || recipe.yields);
   const wake =
     'wakeLock' in navigator && hasContent
-      ? `<button class="btn${ui.wake ? ' on' : ''}" type="button" data-action="wake" aria-pressed="${Boolean(ui.wake)}">${ICON.sun} Nie wygaszaj ekranu</button>`
+      ? `<button class="icon-btn${ui.wake ? ' wake-on' : ''}" type="button" data-action="wake" aria-pressed="${Boolean(ui.wake)}" aria-label="Nie wygaszaj ekranu" title="${ui.wake ? 'Ekran nie gaśnie. Wyłącz' : 'Nie wygaszaj ekranu'}">${ICON.sun}</button>`
       : '';
   const source = SOURCE_NOTE[item.url ? S.recipeSource(item) : recipe && 'own'];
   const origin = item.url
@@ -541,7 +541,7 @@ function recipeView(item) {
     : 'Własny przepis';
   return `<header class="bar">
       <button class="icon-btn" type="button" data-action="back" aria-label="Wróć" title="Wróć">${ICON.back}</button>
-      <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="edit" aria-label="Tytuł, tagi i notatka" title="Tytuł, tagi i notatka">${ICON.edit}</button></div>
+      <div class="bar-actions">${wake}${syncButton()}<button class="icon-btn" type="button" data-action="edit" aria-label="Tytuł, tagi i notatka" title="Tytuł, tagi i notatka">${ICON.edit}</button></div>
     </header>
     ${notices()}
     <article class="recipe" data-id="${esc(item.id)}">
@@ -557,7 +557,6 @@ function recipeView(item) {
       <div class="row recipe-actions">
         <button class="btn${done ? ' on' : ''}" type="button" data-action="toggle" aria-pressed="${done}">${ICON.check} Wypróbowany</button>
         <button class="btn" type="button" data-action="edit-recipe">${hasContent ? 'Popraw przepis' : 'Wpisz przepis'}</button>
-        ${wake}
       </div>
       ${source ? `<p class="field-note">${source}</p>` : ''}
     </article>`;
