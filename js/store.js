@@ -188,6 +188,77 @@ export function textSpans(line) {
   return out;
 }
 
+// ---------- scaling ingredients ----------
+
+const GLYPHS = { '½': 1 / 2, '⅓': 1 / 3, '⅔': 2 / 3, '¼': 1 / 4, '¾': 3 / 4, '⅛': 1 / 8, '⅜': 3 / 8, '⅝': 5 / 8, '⅞': 7 / 8 };
+const NICE = [
+  [0, ''],
+  [1 / 8, '⅛'],
+  [1 / 4, '¼'],
+  [1 / 3, '⅓'],
+  [3 / 8, '⅜'],
+  [1 / 2, '½'],
+  [5 / 8, '⅝'],
+  [2 / 3, '⅔'],
+  [3 / 4, '¾'],
+  [7 / 8, '⅞'],
+  [1, ''],
+];
+
+// An amount in a line: "1 1/2", "1½", "½", "3/4", "1,5", "250", "pół",
+// "półtora". Not a match inside words or codes ("E120").
+const AMOUNT =
+  /(?<![\p{L}\d.,/])(?:(\d+)\s+(\d+)\/(\d+)|(\d+)?\s?([½⅓⅔¼¾⅛⅜⅝⅞])|(\d+)\/(\d+)|(\d+(?:[.,]\d+)?)|(półtora|pół)(?!\p{L}))/gu;
+// Numbers that are not amounts: sizes, temperatures, times, flour types.
+const NOT_AMOUNT_AFTER = /^\s*(?:cm\b|mm\b|°|%|stopni|st\.|minut|min\b|godz|h\b|sek|s\b|[x×]\s*[\d½⅓⅔¼¾⅛⅜⅝⅞]|cali|inch|in\b|degrees|minutes?|hours?|grad|gradi|minuti|minutos|horas?|ore\b)/iu;
+const NOT_AMOUNT_BEFORE = /(?:\btyp|\btype|\bnr|#|\bx|×)\s*$/iu;
+
+function amountValue(m) {
+  if (m[1]) return Number(m[1]) + Number(m[2]) / Number(m[3]);
+  if (m[5]) return (m[4] ? Number(m[4]) : 0) + GLYPHS[m[5]];
+  if (m[6]) return Number(m[6]) / Number(m[7]);
+  if (m[8]) return Number(m[8].replace(',', '.'));
+  return m[9] === 'pół' ? 0.5 : 1.5;
+}
+
+// 0.5 -> "½", 1.5 -> "1½", 2.4 -> "2,4", 333 -> "335": fractions a cook
+// can measure, fewer digits for bigger amounts.
+export function formatAmount(x, decimal = ',', fractions = true) {
+  if (x >= 100) return String(Math.round(x / 5) * 5);
+  if (x >= 10) return String(Math.round(x));
+  const whole = Math.floor(x);
+  for (const [f, glyph] of fractions ? NICE : []) {
+    if (Math.abs(x - whole - f) < 0.02) {
+      const w = whole + (f === 1 ? 1 : 0);
+      return glyph ? `${w || ''}${glyph}` : String(w);
+    }
+  }
+  return String(Math.round(x * 10) / 10).replace('.', decimal);
+}
+
+// An ingredient line with its amounts multiplied by factor. Sizes,
+// temperatures and times stay. The words around the numbers do not change
+// ("2 jajka" -> "4 jajka", but "1 jajko" -> "2 jajko").
+export function scaleLine(line, factor, decimal = ',') {
+  const s = String(line ?? '');
+  if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return s;
+  return s.replace(AMOUNT, (...args) => {
+    const m = args;
+    const at = args.at(-2);
+    const all = args.at(-1);
+    if (NOT_AMOUNT_BEFORE.test(all.slice(0, at)) || NOT_AMOUNT_AFTER.test(all.slice(at + m[0].length))) return m[0];
+    const v = amountValue(m);
+    if (!(v > 0)) return m[0];
+    // An amount written as a decimal ("1,5", "0.5") stays a decimal, with
+    // the same separator.
+    const written = m[8]?.match(/[.,]/)?.[0];
+    return formatAmount(v * factor, written ?? decimal, !written);
+  });
+}
+
+// The multipliers offered when the number of people is not known.
+export const FACTORS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6];
+
 export function timeLabel(minutes) {
   if (!Number.isFinite(minutes) || minutes <= 0) return '';
   const h = Math.floor(minutes / 60);

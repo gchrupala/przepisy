@@ -482,6 +482,35 @@ span.tag {
   margin: 14px 0 0;
 }
 
+.part-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.scaler {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 8px 0;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scaler .icon-btn {
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.scaler span {
+  min-width: 6.5em;
+  text-align: center;
+}
+
 .part h3 {
   margin: 14px 0 2px;
   color: var(--accent);

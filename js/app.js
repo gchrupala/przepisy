@@ -58,6 +58,7 @@ const ui = {
   editBase: null, // the recipe form as it was when opened
   editNew: false, // a new recipe without a page: it goes when closed empty
   checked: new Set(), // ingredients and steps ticked off while cooking
+  scale: new Map(), // recipe id -> multiplier of the ingredient amounts, while the app is open
   wake: null, // the screen wake lock while it is held
   wantWake: false,
   toast: null, // { text, action, run }
@@ -457,7 +458,36 @@ function recipeNotice(item) {
 // A recipe line as HTML: escaped, with the bold of the site kept.
 const rich = (text) => S.textSpans(text).map((p) => (p.strong ? `<strong>${esc(p.text)}</strong>` : esc(p.text))).join('');
 
-function checklist(id, kind, sections) {
+// The number of people (when the recipe gives one) or a multiplier, with
+// buttons to change it. The ingredient amounts follow.
+function scaler(recipe, factor) {
+  const n = S.servingsOf(recipe.yields);
+  const base = n && n.min === n.max ? n.min : null;
+  const value = base
+    ? `Dla <strong>${Math.round(base * factor)}</strong> ${Math.round(base * factor) === 1 ? 'osoby' : 'osób'}`
+    : `Ilość <strong>×${esc(S.formatAmount(factor))}</strong>`;
+  const btn = (step, label, text) => `<button class="icon-btn small" type="button" data-action="scale" data-step="${step}" aria-label="${label}" title="${label}">${text}</button>`;
+  return `<div class="scaler" role="group" aria-label="Ilość składników">${btn(-1, base ? 'Mniej osób' : 'Mniej', '−')}<span aria-live="polite">${value}</span>${btn(1, base ? 'Więcej osób' : 'Więcej', '+')}</div>`;
+}
+
+function rescale(id, step) {
+  const recipe = S.recipeOf(itemById(id));
+  if (!recipe) return;
+  const factor = ui.scale.get(id) ?? 1;
+  const n = S.servingsOf(recipe.yields);
+  let next;
+  if (n && n.min === n.max) {
+    next = Math.max(1, Math.round(n.min * factor) + step) / n.min;
+  } else {
+    const i = S.FACTORS.findIndex((f) => f >= factor - 1e-9);
+    next = S.FACTORS[Math.min(S.FACTORS.length - 1, Math.max(0, (i < 0 ? S.FACTORS.length - 1 : i) + step))];
+  }
+  if (next === 1) ui.scale.delete(id);
+  else ui.scale.set(id, next);
+  render();
+}
+
+function checklist(id, kind, sections, lineOf = (t) => t) {
   let n = 0;
   return sections
     .map((s, g) => {
@@ -469,7 +499,7 @@ function checklist(id, kind, sections) {
           const key = `${id}|${kind}|${g}|${i}`;
           const box = `<input type="checkbox" data-check="${esc(key)}"${ui.checked.has(key) ? ' checked' : ''}>`;
           return kind === 'i'
-            ? `<li><label class="tick">${box}<span>${rich(text)}</span></label></li>`
+            ? `<li><label class="tick">${box}<span>${rich(lineOf(text))}</span></label></li>`
             : `<li><label class="step">${box}<span class="step-num" aria-hidden="true">${n}</span><span>${rich(text)}</span></label></li>`;
         })
         .join('');
@@ -494,8 +524,10 @@ function recipeView(item) {
   const tags = item.tags.length
     ? `<div class="item-tags">${item.tags.map((t) => `<span class="tag">#${esc(t)}</span>`).join('')}</div>`
     : '';
+  const factor = ui.scale.get(item.id) ?? 1;
+  const decimal = /^en/i.test(item.meta?.lang ?? '') ? '.' : ',';
   const ingredients = recipe?.ingredients.length
-    ? `<section class="part"><h2>Składniki</h2>${checklist(item.id, 'i', recipe.ingredients)}</section>`
+    ? `<section class="part"><div class="part-head"><h2>Składniki</h2>${scaler(recipe, factor)}</div>${checklist(item.id, 'i', recipe.ingredients, (t) => S.scaleLine(t, factor, decimal))}</section>`
     : '';
   const steps = recipe?.steps.length ? `<section class="part"><h2>Przygotowanie</h2>${checklist(item.id, 's', recipe.steps)}</section>` : '';
   const hasContent = recipe && (recipe.ingredients.length || recipe.steps.length || recipe.yields);
@@ -1060,6 +1092,9 @@ function onClick(e) {
         persist();
         render();
       }
+      break;
+    case 'scale':
+      rescale(id, Number(el.dataset.step));
       break;
     case 'wake':
       setWake(!ui.wake).then(render);

@@ -345,3 +345,27 @@ test('Markdown in recipe lines: bold kept as bold, links as their text', () => {
   assert.deepEqual(S.textSpans('2 * 3 jajka, 5 ** 2'), [{ text: '2 * 3 jajka, 5 ** 2', strong: false }]);
   assert.deepEqual(S.textSpans(''), []);
 });
+
+test('scaling ingredient amounts', () => {
+  assert.equal(S.scaleLine('500 g mąki pszennej np. typ 500', 2), '1000 g mąki pszennej np. typ 500');
+  assert.equal(S.scaleLine('2 łyżki oleju - 50 ml', 1.5), '3 łyżki oleju - 75 ml');
+  assert.equal(S.scaleLine('pół łyżeczki soli', 2), '1 łyżeczki soli');
+  assert.equal(S.scaleLine('1,5 kg jabłek', 2), '3 kg jabłek');
+  assert.equal(S.scaleLine('1,5 kg jabłek', 0.5), '0,8 kg jabłek');
+  assert.equal(S.scaleLine('sok z ½ – 1 cytryny', 2), 'sok z 1 – 2 cytryny');
+  assert.equal(S.scaleLine('1 1/2 cups flour', 2), '3 cups flour');
+  assert.equal(S.scaleLine('3/4 cup milk', 2), '1½ cup milk');
+  assert.equal(S.scaleLine('0.5 l water', 3), '1.5 l water');
+  assert.equal(S.scaleLine('3 jajka', 0.5), '1½ jajka');
+  assert.equal(S.scaleLine('tortownica 24 cm, piekarnik 180°C, 20 minut', 2), 'tortownica 24 cm, piekarnik 180°C, 20 minut');
+  assert.equal(S.scaleLine('blaszka 21 x 27 cm', 2), 'blaszka 21 x 27 cm');
+  assert.equal(S.scaleLine('barwnik E120', 2), 'barwnik E120');
+  assert.equal(S.scaleLine('sól do smaku', 2), 'sól do smaku');
+  assert.equal(S.scaleLine('200 g masła', 1), '200 g masła');
+  assert.equal(S.scaleLine('100 g sera', 1 / 3), '33 g sera');
+  assert.equal(S.scaleLine('300 g sera', 1.5), '450 g sera');
+  assert.equal(S.scaleLine('¾ to 1 cup onion, cubed to ¾ x ¾ inch', 1.5), '1⅛ to 1½ cup onion, cubed to ¾ x ¾ inch');
+  assert.equal(S.formatAmount(2.4), '2,4');
+  assert.equal(S.formatAmount(0.25), '¼');
+  assert.equal(S.formatAmount(333), '335');
+});
