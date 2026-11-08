@@ -416,7 +416,23 @@ export function editRecipe(doc, id, form, now) {
 
 // ---------- titles for display ----------
 
-export const titleOf = (item) => item.title || item.meta?.title || (item.url ? prettyUrl(item.url) : 'Bez tytułu');
+// Page titles often end with the name of the site ("Kapusta z grzybami |
+// AniaGotuje.pl") or with a separator left over; both go. The name goes
+// only when it matches the address or the site name of the recipe.
+const squash = (s) => fold(s).replace(/[^\p{L}\p{N}]+/gu, '');
+function trimTitle(title, item) {
+  let t = String(title ?? '').replace(/[\s|–—:·•/-]+$/u, '');
+  const m = t.match(/^(.+?)\s+[|–—-]\s+([^|–—]+)$/u);
+  if (m) {
+    const tail = squash(m[2]).replace(/(pl|com|es|it|net|org)$/, '');
+    const where = [squash(domainOf(item.url)), squash(item.meta?.site)];
+    if (tail.length >= 3 && where.some((w) => w && w.includes(tail))) t = m[1];
+  }
+  return t;
+}
+
+export const titleOf = (item) =>
+  trimTitle(item.title, item) || trimTitle(item.meta?.title, item) || (item.url ? prettyUrl(item.url) : 'Bez tytułu');
 export const siteOf = (item) => item.meta?.site || domainOf(item.url);
 
 export function prettyUrl(url) {

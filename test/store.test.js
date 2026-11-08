@@ -391,3 +391,14 @@ test('measures written as words count as one and take the right form', () => {
   assert.equal(S.scaleLine('Aglio 1 spicchio', 3), 'Aglio 3 spicchi');
   assert.equal(S.scaleLine('3 clove(s) of garlic', 2), '6 clove(s) of garlic');
 });
+
+test('titles lose a separator left at the end', () => {
+  assert.equal(S.titleOf({ title: '', url: 'https://example.com/a', meta: { title: 'Kapusta z grzybami |' } }), 'Kapusta z grzybami');
+  assert.equal(S.titleOf({ title: 'Leczo – ', url: 'https://example.com/a' }), 'Leczo');
+  assert.equal(S.titleOf({ title: 'Pierogi | Ania Gotuje', url: 'https://example.com/a' }), 'Pierogi | Ania Gotuje');
+  assert.equal(S.titleOf({ title: 'Kapusta z grzybami | AniaGotuje.pl', url: 'https://aniagotuje.pl/przepis/kapusta-z-grzybami' }), 'Kapusta z grzybami');
+  assert.equal(S.titleOf({ title: 'Leczo - Kwestia Smaku', url: 'https://www.kwestiasmaku.com/przepis/leczo' }), 'Leczo');
+  assert.equal(S.titleOf({ title: 'Easy pancakes | Good Food', url: 'https://www.bbcgoodfood.com/x', meta: { fetchedAt: 1, site: 'Good Food' } }), 'Easy pancakes');
+  assert.equal(S.titleOf({ title: 'Dificultad: bajo | Comensales: 4', url: 'https://canalcocina.es/x' }), 'Dificultad: bajo | Comensales: 4');
+  assert.equal(S.titleOf({ title: ' | ', url: 'https://example.com/a' }), 'example.com/a');
+});
