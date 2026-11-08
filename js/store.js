@@ -236,24 +236,123 @@ export function formatAmount(x, decimal = ',', fractions = true) {
   return String(Math.round(x * 10) / 10).replace('.', decimal);
 }
 
+// Measures written as words. Polish ones have four forms: 1, 2–4, 5 and
+// more, a fraction ("1½ szklanki", "½ ząbka"); the others have two: up to 1,
+// more than 1.
+const UNITS_PL = [
+  ['szklanka', 'szklanki', 'szklanek', 'szklanki'],
+  ['łyżka', 'łyżki', 'łyżek', 'łyżki'],
+  ['łyżeczka', 'łyżeczki', 'łyżeczek', 'łyżeczki'],
+  ['filiżanka', 'filiżanki', 'filiżanek', 'filiżanki'],
+  ['garść', 'garście', 'garści', 'garści'],
+  ['szczypta', 'szczypty', 'szczypt', 'szczypty'],
+  ['puszka', 'puszki', 'puszek', 'puszki'],
+  ['kostka', 'kostki', 'kostek', 'kostki'],
+  ['opakowanie', 'opakowania', 'opakowań', 'opakowania'],
+  ['słoik', 'słoiki', 'słoików', 'słoika'],
+  ['ząbek', 'ząbki', 'ząbków', 'ząbka'],
+  ['główka', 'główki', 'główek', 'główki'],
+  ['pęczek', 'pęczki', 'pęczków', 'pęczka'],
+  ['plaster', 'plastry', 'plastrów', 'plastra'],
+  ['plasterek', 'plasterki', 'plasterków', 'plasterka'],
+  ['jajko', 'jajka', 'jajek', 'jajka'],
+  ['żółtko', 'żółtka', 'żółtek', 'żółtka'],
+  ['białko', 'białka', 'białek', 'białka'],
+];
+const UNITS_OTHER = [
+  ['cup', 'cups'],
+  ['tablespoon', 'tablespoons'],
+  ['teaspoon', 'teaspoons'],
+  ['pinch', 'pinches'],
+  ['handful', 'handfuls'],
+  ['clove', 'cloves'],
+  ['can', 'cans'],
+  ['stick', 'sticks'],
+  ['slice', 'slices'],
+  ['egg', 'eggs'],
+  ['taza', 'tazas'],
+  ['cucharada', 'cucharadas'],
+  ['cucharadita', 'cucharaditas'],
+  ['vaso', 'vasos'],
+  ['pizca', 'pizcas'],
+  ['diente', 'dientes'],
+  ['huevo', 'huevos'],
+  ['tazza', 'tazze'],
+  ['cucchiaio', 'cucchiai'],
+  ['cucchiaino', 'cucchiaini'],
+  ['bicchiere', 'bicchieri'],
+  ['pizzico', 'pizzichi'],
+  ['spicchio', 'spicchi'],
+  ['uovo', 'uova'],
+];
+const UNIT_BY_FORM = new Map();
+for (const forms of UNITS_PL) for (const f of forms) if (!UNIT_BY_FORM.has(f)) UNIT_BY_FORM.set(f, { pl: true, forms });
+for (const forms of UNITS_OTHER) for (const f of forms) UNIT_BY_FORM.set(f, { pl: false, forms });
+const WORD = /^(\s*)(\p{L}+)(?![\p{L}(])/u;
+// "szklanka mąki", "a cup of flour", "una taza de arroz": one measure
+// without a number, at the start of the line.
+const IMPLICIT = /^(\s*(?:[-–•*·]\s*)?)(?:(?:a|an|one|un|una|uno)\s+)?(\p{L}+)(?!\p{L})/iu;
+
+function unitForm(unit, value) {
+  const [one, few, many, part] = unit.forms;
+  if (!unit.pl) return value <= 1 ? one : few;
+  if (!Number.isInteger(value)) return part;
+  if (value === 1) return one;
+  const n10 = value % 10;
+  const n100 = value % 100;
+  return n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14) ? few : many;
+}
+
+const sameCase = (word, like) => (like[0] === like[0].toUpperCase() && like[0] !== like[0].toLowerCase() ? word[0].toUpperCase() + word.slice(1) : word);
+
+// The value an amount is shown as, after formatAmount (so the form of the
+// word that follows agrees with what is shown).
+function shownValue(text) {
+  const m = [...text.matchAll(AMOUNT)][0];
+  return m ? amountValue(m) : NaN;
+}
+
 // An ingredient line with its amounts multiplied by factor. Sizes,
-// temperatures and times stay. The words around the numbers do not change
-// ("2 jajka" -> "4 jajka", but "1 jajko" -> "2 jajko").
+// temperatures and times stay. A measure written as a word ("szklanka",
+// "cup") counts as one and takes the right form ("2 szklanki"); other
+// words keep their ending ("1 cebula" -> "2 cebula").
 export function scaleLine(line, factor, decimal = ',') {
   const s = String(line ?? '');
   if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return s;
-  return s.replace(AMOUNT, (...args) => {
-    const m = args;
-    const at = args.at(-2);
-    const all = args.at(-1);
-    if (NOT_AMOUNT_BEFORE.test(all.slice(0, at)) || NOT_AMOUNT_AFTER.test(all.slice(at + m[0].length))) return m[0];
+  const lead = s.match(IMPLICIT);
+  const leadUnit = lead && UNIT_BY_FORM.get(lead[2].toLowerCase());
+  let out = '';
+  let last = 0;
+  // "Spicchio di aglio 1" (the amount at the end) is not an implicit one.
+  if (leadUnit && leadUnit.forms[0] === lead[2].toLowerCase() && !/[\d½⅓⅔¼¾⅛⅜⅝⅞]\s*$/.test(s)) {
+    const amount = formatAmount(factor, decimal);
+    const form = unitForm(leadUnit, shownValue(amount));
+    out = lead[1] + sameCase(`${amount} ${form}`, lead[0].trim().replace(/^[-–•*·]\s*/, ''));
+    last = lead[0].length;
+  }
+  for (const m of s.matchAll(AMOUNT)) {
+    const at = m.index;
+    if (at < last) continue;
+    const end = at + m[0].length;
+    if (NOT_AMOUNT_BEFORE.test(s.slice(0, at)) || NOT_AMOUNT_AFTER.test(s.slice(end))) continue;
     const v = amountValue(m);
-    if (!(v > 0)) return m[0];
+    if (!(v > 0)) continue;
     // An amount written as a decimal ("1,5", "0.5") stays a decimal, with
     // the same separator.
     const written = m[8]?.match(/[.,]/)?.[0];
-    return formatAmount(v * factor, written ?? decimal, !written);
-  });
+    const amount = formatAmount(v * factor, written ?? decimal, !written);
+    out += s.slice(last, at) + amount;
+    last = end;
+    // The measure right after the amount agrees with the new number.
+    const next = s.slice(end).match(WORD);
+    const unit = next && UNIT_BY_FORM.get(next[2].toLowerCase());
+    if (unit) {
+      const shown = written ? Number(amount.replace(',', '.')) : shownValue(amount);
+      out += next[1] + sameCase(unitForm(unit, shown), next[2]);
+      last = end + next[0].length;
+    }
+  }
+  return out + s.slice(last);
 }
 
 // The multipliers offered when the number of people is not known.

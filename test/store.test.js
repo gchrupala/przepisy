@@ -349,12 +349,12 @@ test('Markdown in recipe lines: bold kept as bold, links as their text', () => {
 test('scaling ingredient amounts', () => {
   assert.equal(S.scaleLine('500 g mąki pszennej np. typ 500', 2), '1000 g mąki pszennej np. typ 500');
   assert.equal(S.scaleLine('2 łyżki oleju - 50 ml', 1.5), '3 łyżki oleju - 75 ml');
-  assert.equal(S.scaleLine('pół łyżeczki soli', 2), '1 łyżeczki soli');
+  assert.equal(S.scaleLine('pół łyżeczki soli', 2), '1 łyżeczka soli');
   assert.equal(S.scaleLine('1,5 kg jabłek', 2), '3 kg jabłek');
   assert.equal(S.scaleLine('1,5 kg jabłek', 0.5), '0,8 kg jabłek');
   assert.equal(S.scaleLine('sok z ½ – 1 cytryny', 2), 'sok z 1 – 2 cytryny');
   assert.equal(S.scaleLine('1 1/2 cups flour', 2), '3 cups flour');
-  assert.equal(S.scaleLine('3/4 cup milk', 2), '1½ cup milk');
+  assert.equal(S.scaleLine('3/4 cup milk', 2), '1½ cups milk');
   assert.equal(S.scaleLine('0.5 l water', 3), '1.5 l water');
   assert.equal(S.scaleLine('3 jajka', 0.5), '1½ jajka');
   assert.equal(S.scaleLine('tortownica 24 cm, piekarnik 180°C, 20 minut', 2), 'tortownica 24 cm, piekarnik 180°C, 20 minut');
@@ -364,8 +364,30 @@ test('scaling ingredient amounts', () => {
   assert.equal(S.scaleLine('200 g masła', 1), '200 g masła');
   assert.equal(S.scaleLine('100 g sera', 1 / 3), '33 g sera');
   assert.equal(S.scaleLine('300 g sera', 1.5), '450 g sera');
-  assert.equal(S.scaleLine('¾ to 1 cup onion, cubed to ¾ x ¾ inch', 1.5), '1⅛ to 1½ cup onion, cubed to ¾ x ¾ inch');
+  assert.equal(S.scaleLine('¾ to 1 cup onion, cubed to ¾ x ¾ inch', 1.5), '1⅛ to 1½ cups onion, cubed to ¾ x ¾ inch');
   assert.equal(S.formatAmount(2.4), '2,4');
   assert.equal(S.formatAmount(0.25), '¼');
   assert.equal(S.formatAmount(333), '335');
+});
+
+test('measures written as words count as one and take the right form', () => {
+  assert.equal(S.scaleLine('szklanka gorącej wody - 250 ml', 2), '2 szklanki gorącej wody - 500 ml');
+  assert.equal(S.scaleLine('Szklanka mąki', 5), '5 szklanek mąki');
+  assert.equal(S.scaleLine('szklanka mąki', 0.5), '½ szklanki mąki');
+  assert.equal(S.scaleLine('szczypta soli', 3), '3 szczypty soli');
+  assert.equal(S.scaleLine('ząbek czosnku', 1.5), '1½ ząbka czosnku');
+  assert.equal(S.scaleLine('- łyżka masła', 2), '- 2 łyżki masła');
+  assert.equal(S.scaleLine('a cup of flour', 2), '2 cups of flour');
+  assert.equal(S.scaleLine('A pinch of salt', 0.5), '½ pinch of salt');
+  assert.equal(S.scaleLine('una taza de arroz', 3), '3 tazas de arroz');
+  assert.equal(S.scaleLine('1 łyżeczka soli', 2), '2 łyżeczki soli');
+  assert.equal(S.scaleLine('2 łyżki oleju', 2.5), '5 łyżek oleju');
+  assert.equal(S.scaleLine('2 łyżki oleju', 11), '22 łyżki oleju');
+  assert.equal(S.scaleLine('1 jajko', 2), '2 jajka');
+  assert.equal(S.scaleLine('2 cups flour', 0.5), '1 cup flour');
+  assert.equal(S.scaleLine('1 cebula', 2), '2 cebula');
+  assert.equal(S.scaleLine('cebula', 2), 'cebula');
+  assert.equal(S.scaleLine('Spicchio di aglio 1', 2), 'Spicchio di aglio 2');
+  assert.equal(S.scaleLine('Aglio 1 spicchio', 3), 'Aglio 3 spicchi');
+  assert.equal(S.scaleLine('3 clove(s) of garlic', 2), '6 clove(s) of garlic');
 });
