@@ -67,6 +67,52 @@ test('servings: numbers of people, ranges, and yields that are not people', () =
   assert.equal(S.timeLabel(null), '');
 });
 
+test('labels in English', () => {
+  assert.equal(S.yieldsLabel('4 porcje', 'en'), 'Serves 4');
+  assert.equal(S.yieldsLabel('4-6 servings', 'en'), 'Serves 4–6');
+  assert.equal(S.yieldsLabel('about 20 dumplings', 'en'), 'Makes: about 20 dumplings');
+  assert.equal(S.timeLabel(90, 'en'), '1 h 30 min');
+  assert.equal(S.titleOf({ url: '', title: '' }, 'en'), 'Untitled');
+  assert.equal(S.titleOf({ url: '', title: '' }), 'Bez tytułu');
+  // An unknown language (or an index from Array.map) means Polish.
+  assert.equal(S.yieldsLabel('1', 3), 'Dla 1 osoby');
+});
+
+test('shared text of a recipe: facts, parts, numbered steps and the address; no note or tags', () => {
+  const doc = S.emptyDoc();
+  const { item } = S.addItem(doc, { url: 'https://example.com/pierogi?utm_source=x', title: 'Pierogi', note: 'mniej soli', tags: 'obiad' }, min(0), rnd);
+  item.meta = { fetchedAt: min(1), recipe: PAGE_RECIPE };
+  assert.equal(
+    S.recipeText(item),
+    [
+      'Pierogi',
+      'Dla 4 osób · 45 min',
+      '',
+      'Składniki',
+      '',
+      'Ciasto:',
+      '- 200 g mąki',
+      '- 2 jajka',
+      '',
+      'Farsz:',
+      '- 300 g twarogu',
+      '',
+      'Przygotowanie',
+      '1. Zagnieść ciasto.',
+      '2. Ugotować pierogi.',
+      '',
+      'https://example.com/pierogi',
+    ].join('\n'),
+  );
+  assert.match(S.recipeText(item, 'en'), /^Pierogi\nServes 4 · 45 min\n\nIngredients\n/);
+  assert.match(S.recipeText(item, 'en'), /\n\nMethod\n1\. Zagnieść ciasto\./);
+  // Steps are numbered on across parts.
+  S.editRecipe(doc, item.id, { yields: '', ingredients: '', steps: '# A\nraz\n# B\ndwa' }, min(2));
+  assert.equal(S.recipeText(item), 'Pierogi\n45 min\n\nPrzygotowanie\n\nA:\n1. raz\n\nB:\n2. dwa\n\nhttps://example.com/pierogi');
+  // Without a recipe and a page: only the title.
+  assert.equal(S.recipeText(S.addManual(doc, { title: 'Zupa' }, min(3), rnd)), 'Zupa');
+});
+
 test('recipe text: one line per item, "# name" for parts, bullets and numbers go', () => {
   const text = S.sectionsToText(PAGE_RECIPE.ingredients);
   assert.equal(text, '# Ciasto\n200 g mąki\n2 jajka\n\n# Farsz\n300 g twarogu');

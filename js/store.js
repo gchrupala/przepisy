@@ -165,19 +165,42 @@ export function servingsOf(yields) {
   return min > 0 && max >= min ? { min, max } : null;
 }
 
-// "Dla 4 osób", "Dla 1 osoby", "Dla 4–6 osób", "Ilość: około 60 pierogów", or ''.
-export function yieldsLabel(yields) {
+// The few words that labels and the shared text of a recipe use, in the
+// languages of the interface (js/i18n.js). Anything else falls back to 'pl'.
+const WORDS = {
+  pl: {
+    serves: (n, max) => `Dla ${n} ${max === 1 ? 'osoby' : 'osób'}`,
+    makes: (y) => `Ilość: ${y}`,
+    hours: (h) => `${h} godz.`,
+    untitled: 'Bez tytułu',
+    ingredients: 'Składniki',
+    method: 'Przygotowanie',
+  },
+  en: {
+    serves: (n) => `Serves ${n}`,
+    makes: (y) => `Makes: ${y}`,
+    hours: (h) => `${h} h`,
+    untitled: 'Untitled',
+    ingredients: 'Ingredients',
+    method: 'Method',
+  },
+};
+const words = (lang) => WORDS[lang] ?? WORDS.pl;
+
+// "Dla 4 osób", "Dla 1 osoby", "Dla 4–6 osób", "Ilość: około 60 pierogów", or '';
+// in English "Serves 4", "Makes: about 60 pierogi".
+export function yieldsLabel(yields, lang = 'pl') {
   const n = servingsOf(yields);
-  if (n) return `Dla ${n.min === n.max ? n.min : `${n.min}–${n.max}`} ${n.max === 1 ? 'osoby' : 'osób'}`;
-  return yields ? `Ilość: ${yields}` : '';
+  if (n) return words(lang).serves(n.min === n.max ? n.min : `${n.min}–${n.max}`, n.max);
+  return yields ? words(lang).makes(yields) : '';
 }
 
-// 45 -> "45 min", 90 -> "1 godz. 30 min", 180 -> "3 godz."
-export function timeLabel(minutes) {
+// 45 -> "45 min", 90 -> "1 godz. 30 min" ("1 h 30 min"), 180 -> "3 godz."
+export function timeLabel(minutes, lang = 'pl') {
   if (!Number.isFinite(minutes) || minutes <= 0) return '';
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
-  return [h ? `${h} godz.` : '', m ? `${m} min` : ''].filter(Boolean).join(' ');
+  return [h ? words(lang).hours(h) : '', m ? `${m} min` : ''].filter(Boolean).join(' ');
 }
 
 // Sections as text to edit: one item per line, "# Name" before a named part.
@@ -231,7 +254,8 @@ export function editRecipe(doc, id, form, now) {
 
 // ---------- titles for display ----------
 
-export const titleOf = (item) => item.title || item.meta?.title || (item.url ? prettyUrl(item.url) : 'Bez tytułu');
+export const titleOf = (item, lang = 'pl') =>
+  item.title || item.meta?.title || (item.url ? prettyUrl(item.url) : words(lang).untitled);
 export const siteOf = (item) => item.meta?.site || domainOf(item.url);
 
 export function prettyUrl(url) {
@@ -242,6 +266,33 @@ export function prettyUrl(url) {
   } catch {
     return String(url);
   }
+}
+
+// ---------- sharing ----------
+
+// A recipe as plain text, to send to someone: title, servings and time,
+// ingredients, numbered steps and the address of the page. The note and
+// tags are one's own and stay out.
+export function recipeText(item, lang = 'pl') {
+  const recipe = recipeOf(item);
+  const w = words(lang);
+  const out = [titleOf(item, lang)];
+  const facts = [yieldsLabel(recipe?.yields, lang), timeLabel(recipe?.time, lang)].filter(Boolean).join(' · ');
+  if (facts) out.push(facts);
+  const part = (head, sections, bullet) => {
+    if (!sections?.length) return;
+    let n = 0;
+    const lines = [head];
+    for (const s of sections) {
+      if (s.name) lines.push('', `${s.name}:`);
+      for (const text of s.items) lines.push(bullet ? `- ${text}` : `${(n += 1)}. ${text}`);
+    }
+    out.push('', ...lines);
+  };
+  part(w.ingredients, recipe?.ingredients, true);
+  part(w.method, recipe?.steps, false);
+  if (item.url) out.push('', item.url);
+  return out.join('\n');
 }
 
 // ---------- changes ----------

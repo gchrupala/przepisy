@@ -1,15 +1,16 @@
 // User interface: renders the views from the document in store.js and
 // handles input, recipes shared from other apps and sync.
 
+import { getLang, has, LANGS, pickLang, setLang, STRINGS, t } from './i18n.js';
 import * as S from './store.js';
 import { gitHubRemote, parsePerson, parseRepo, syncOnce, syncPath } from './sync.js';
 
 const VERSION = '1';
 
 const STATUS_TABS = [
-  ['all', 'Wszystkie'],
-  ['todo', 'Do wypróbowania'],
-  ['done', 'Wypróbowane'],
+  ['all', 'tabAll'],
+  ['todo', 'tabTodo'],
+  ['done', 'tabDone'],
 ];
 
 const ICON = {
@@ -23,6 +24,7 @@ const ICON = {
   pot: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6Z"/><path d="M2 10h20M10 7h4M9 4c0 1 1 1 1 2M14 4c0 1 1 1 1 2"/></svg>',
   out: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M18 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4"/></svg>',
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M7 11H6a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1h-1"/></svg>',
   sun: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
 };
 
@@ -31,7 +33,15 @@ let doc = S.loadDoc(storage);
 let saveFailed = !storage;
 
 const PREFS_KEY = 'przepisy:prefs';
-const prefs = { status: 'all', tag: '', ...readJson(PREFS_KEY) };
+const prefs = { status: 'all', tag: '', lang: 'auto', ...readJson(PREFS_KEY) };
+
+// The interface language: chosen in settings ('pl' | 'en') or, with
+// 'auto', the browser's.
+function applyLang() {
+  setLang(pickLang(prefs.lang, navigator.languages ?? [navigator.language]));
+  document.documentElement.lang = getLang();
+}
+applyLang();
 
 const ui = {
   view: 'list', // 'list' | 'recipe' | 'settings'
@@ -220,42 +230,46 @@ async function connectSync(repoInput, personInput, tokenInput) {
   }
 }
 
-const SYNC_ERRORS = {
-  repoFormat: 'Wpisz repozytorium jako właściciel/nazwa, np. gchrupala/app-data.',
-  person: 'Wpisz imię. Od niego zależy folder z danymi w repozytorium.',
-  token: 'Wklej token.',
-  auth: 'GitHub nie przyjął tokena. Mógł wygasnąć; utwórz nowy i połącz ponownie.',
-  forbidden: 'Token nie ma prawa zapisu w tym repozytorium (Contents: Read and write).',
-  notFound: 'Nie ma takiego repozytorium albo token nie ma do niego dostępu.',
-  public: 'To repozytorium jest publiczne. Użyj prywatnego.',
-  conflict: 'Plik w repozytorium zmieniał się w trakcie. Spróbuj jeszcze raz.',
-  bad: 'Synchronizacja się nie udała. Plik w repozytorium może być uszkodzony.',
-};
+const syncErrorText = (kind) => t(has(`syncErr_${kind}`) ? `syncErr_${kind}` : 'syncErr_bad');
 
 // ---------- formatting ----------
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-const rtf = new Intl.RelativeTimeFormat('pl', { numeric: 'auto' });
-const dateFmt = new Intl.DateTimeFormat('pl', { day: 'numeric', month: 'short', year: 'numeric' });
-const timeFmt = new Intl.DateTimeFormat('pl', { hour: '2-digit', minute: '2-digit' });
+// Date formats of the current language, made once per language.
+const formats = {};
+function fmt() {
+  const lang = getLang();
+  formats[lang] ??= {
+    rtf: new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }),
+    date: new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit' }),
+  };
+  return formats[lang];
+}
 
 function ago(ms, now = Date.now()) {
+  const f = fmt();
   const s = (ms - now) / 1000;
-  if (s > -60) return 'przed chwilą';
-  if (s > -3600) return rtf.format(Math.round(s / 60), 'minute');
+  if (s > -60) return t('justNow');
+  if (s > -3600) return f.rtf.format(Math.round(s / 60), 'minute');
   const day = (d) => new Date(d).setHours(0, 0, 0, 0);
   const days = Math.round((day(ms) - day(now)) / 86400000);
-  if (days === 0) return `dziś, ${timeFmt.format(ms)}`;
-  if (days > -7) return rtf.format(days, 'day');
-  return dateFmt.format(ms);
+  if (days === 0) return t('todayAt', f.time.format(ms));
+  if (days > -7) return f.rtf.format(days, 'day');
+  return f.date.format(ms);
 }
 
 // "Dla 4 osób · 45 min"
 function factsOf(recipe) {
-  return [S.yieldsLabel(recipe?.yields), S.timeLabel(recipe?.time)].filter(Boolean).join(' · ');
+  return [S.yieldsLabel(recipe?.yields, getLang()), S.timeLabel(recipe?.time, getLang())].filter(Boolean).join(' · ');
 }
+
+const titleOf = (item) => S.titleOf(item, getLang());
+
+// A link-like button inside a sentence.
+const actionLink = (action) => (text) => `<button type="button" class="link" data-action="${action}">${text}</button>`;
 
 // ---------- views ----------
 
@@ -263,7 +277,7 @@ function render() {
   const focus = rememberFocus();
   if (ui.view === 'recipe' && !itemById(ui.recipeId)) ui.view = 'list';
   const recipe = ui.view === 'recipe' ? itemById(ui.recipeId) : null;
-  document.title = ui.view === 'settings' ? 'Ustawienia — Przepisy' : recipe ? `${S.titleOf(recipe)} — Przepisy` : 'Przepisy';
+  document.title = ui.view === 'settings' ? `${t('settings')} — Przepisy` : recipe ? `${titleOf(recipe)} — Przepisy` : 'Przepisy';
   app.innerHTML = ui.view === 'settings' ? settingsView() : recipe ? recipeView(recipe) : listView();
   renderSheet();
   renderToast();
@@ -294,31 +308,31 @@ function syncButton() {
   if (!syncConfig) return '';
   const state = sync.busy ? 'busy' : syncConfig.error ? 'error' : 'ok';
   const label = sync.busy
-    ? 'Synchronizuję…'
+    ? t('syncing')
     : syncConfig.error
-      ? 'Synchronizacja nie działa'
+      ? t('syncNotWorking')
       : syncConfig.lastSyncAt
-        ? `Zsynchronizowano ${ago(syncConfig.lastSyncAt)}. Synchronizuj teraz`
-        : 'Synchronizuj teraz';
+        ? t('syncedAgo', ago(syncConfig.lastSyncAt))
+        : t('syncNow');
   return `<button class="icon-btn sync-${state}" type="button" data-action="${syncConfig.error ? 'settings' : 'sync-now'}" title="${esc(label)}" aria-label="${esc(label)}">${ICON.cloud}</button>`;
 }
 
 function notices() {
   const out = [];
-  if (saveFailed) out.push('<p class="notice">Przeglądarka nie zapisuje danych na tym urządzeniu (np. tryb prywatny). Po zamknięciu strony zmiany przepadną.</p>');
-  if (syncConfig?.error) out.push('<button class="notice notice-link" type="button" data-action="settings">Synchronizacja z GitHubem nie działa. Szczegóły w ustawieniach.</button>');
+  if (saveFailed) out.push(`<p class="notice">${t('noStorage')}</p>`);
+  if (syncConfig?.error) out.push(`<button class="notice notice-link" type="button" data-action="settings">${t('syncBroken')}</button>`);
   return out.join('');
 }
 
 function listView() {
   return `<header class="bar">
       <h1>Przepisy</h1>
-      <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="new-recipe" aria-label="Wpisz własny przepis" title="Wpisz własny przepis">${ICON.plus}</button><button class="icon-btn" type="button" data-action="settings" aria-label="Ustawienia" title="Ustawienia">${ICON.gear}</button></div>
+      <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="new-recipe" aria-label="${t('newRecipe')}" title="${t('newRecipe')}">${ICON.plus}</button><button class="icon-btn" type="button" data-action="settings" aria-label="${t('settings')}" title="${t('settings')}">${ICON.gear}</button></div>
     </header>
     ${notices()}
     <form class="search" id="search-form" role="search">
       <span class="search-icon">${ICON.search}</span>
-      <input id="q" type="search" enterkeyhint="search" placeholder="Szukaj albo wklej link" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(ui.query)}" aria-label="Szukaj albo wklej link">
+      <input id="q" type="search" enterkeyhint="search" placeholder="${t('search')}" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(ui.query)}" aria-label="${t('search')}">
       <span id="search-actions" class="search-actions">${searchActions()}</span>
     </form>
     <div id="results">${results()}</div>`;
@@ -328,8 +342,8 @@ const pastedUrl = () => (/\s/.test(ui.query.trim()) ? null : S.cleanUrl(ui.query
 
 function searchActions() {
   const pasted = pastedUrl();
-  return `${ui.query ? `<button class="icon-btn small" type="button" data-action="clear-query" aria-label="Wyczyść">${ICON.close}</button>` : ''}
-    ${pasted ? '<button class="btn primary" type="submit">Dodaj</button>' : navigator.clipboard?.readText && !ui.query ? '<button class="btn" type="button" data-action="paste">Wklej</button>' : ''}`;
+  return `${ui.query ? `<button class="icon-btn small" type="button" data-action="clear-query" aria-label="${t('clear')}">${ICON.close}</button>` : ''}
+    ${pasted ? `<button class="btn primary" type="submit">${t('add')}</button>` : navigator.clipboard?.readText && !ui.query ? `<button class="btn" type="button" data-action="paste">${t('paste')}</button>` : ''}`;
 }
 
 function results() {
@@ -345,22 +359,22 @@ function results() {
 
   const tabs = STATUS_TABS.map(
     ([key, label]) =>
-      `<button type="button" role="tab" aria-selected="${prefs.status === key}" data-action="status" data-status="${key}">${label} <span class="count">${counts[key]}</span></button>`,
+      `<button type="button" role="tab" aria-selected="${prefs.status === key}" data-action="status" data-status="${key}">${t(label)} <span class="count">${counts[key]}</span></button>`,
   ).join('');
 
   const chip = (value, label, count, on) =>
     `<button type="button" class="chip${on ? ' on' : ''}" aria-pressed="${on}" data-action="tag" data-value="${esc(value)}">${esc(label)} <span class="count">${count}</span></button>`;
   const tagChips = tags.map(([t, n]) => chip(t, `#${t}`, n, prefs.tag === t)).join('');
-  const filters = tagChips ? `<div class="chips" aria-label="Filtry">${tagChips}</div>` : '';
+  const filters = tagChips ? `<div class="chips" aria-label="${t('filters')}">${tagChips}</div>` : '';
 
   let body;
   if (items.length) body = `<ul class="items">${items.map(itemView).join('')}</ul>`;
   else if (!all.length) body = pasted ? '' : emptyHelp();
   else if (pasted) body = '';
-  else body = `<p class="empty">Nic tu nie pasuje${ui.query || prefs.tag ? '. <button type="button" class="link" data-action="clear-filters">Pokaż wszystko</button>' : '.'}</p>`;
+  else body = `<p class="empty">${t('nothingMatches')}${ui.query || prefs.tag ? `. ${actionLink('clear-filters')(t('showAll'))}` : '.'}</p>`;
 
   const addHint = pasted
-    ? `<p class="add-hint">${known ? 'Ten przepis już jest zapisany. „Dodaj” go otworzy.' : 'To jest link. Naciśnij „Dodaj”, żeby zapisać przepis.'}</p>`
+    ? `<p class="add-hint">${known ? t('hintKnown') : t('hintLink')}</p>`
     : '';
   return `${addHint}<div class="tabs" role="tablist">${tabs}</div>${filters}${body}`;
 }
@@ -381,15 +395,15 @@ const imageTag = (item, cls) =>
 // What the list says about a recipe that has none yet.
 function recipeState(item) {
   if (S.recipeOf(item)) return '';
-  if (!item.url) return 'bez treści';
-  if (!item.meta) return 'czeka na przepis';
-  return item.meta.error ? 'nie udało się pobrać' : 'bez przepisu';
+  if (!item.url) return t('stateBlank');
+  if (!item.meta) return t('stateWaiting');
+  return item.meta.error ? t('stateFailed') : t('stateNone');
 }
 
 function itemView(item) {
   const recipe = S.recipeOf(item);
   const done = item.status === 'done';
-  const info = [esc(item.url ? S.siteOf(item) : 'własny przepis'), esc(factsOf(recipe)), recipeState(item), done ? 'wypróbowany' : ''].filter(Boolean).join(' · ');
+  const info = [esc(item.url ? S.siteOf(item) : t('ownRecipeShort')), esc(factsOf(recipe)), recipeState(item), done ? t('triedShort') : ''].filter(Boolean).join(' · ');
   const tags = item.tags.length
     ? `<div class="item-tags">${item.tags.map((t) => `<button type="button" class="tag" data-action="tag" data-value="${esc(t)}">#${esc(t)}</button>`).join('')}</div>`
     : '';
@@ -397,7 +411,7 @@ function itemView(item) {
     <button type="button" class="item-open" data-action="open">
       <span class="thumb">${imageTag(item, 'thumb-img')}${ICON.pot}</span>
       <span class="item-body">
-        <span class="item-title">${esc(S.titleOf(item))}</span>
+        <span class="item-title">${esc(titleOf(item))}</span>
         <span class="item-info">${info}</span>
       </span>
     </button>
@@ -407,8 +421,8 @@ function itemView(item) {
 
 function emptyHelp() {
   return `<div class="empty help">
-    <p><strong>Nie ma jeszcze przepisów.</strong></p>
-    <p>Udostępnij stronę z przepisem z innej aplikacji albo wklej link w pole powyżej. Aplikacja zapisze adres, a GitHub wyciągnie ze strony porcje, składniki i kroki. Przepis bez strony wpiszesz przyciskiem +. Sposoby dodawania i połączenie z GitHubem są w <button type="button" class="link" data-action="settings">ustawieniach</button>.</p>
+    <p><strong>${t('emptyTitle')}</strong></p>
+    <p>${t('emptyBody', actionLink('settings'))}</p>
   </div>`;
 }
 
@@ -418,21 +432,13 @@ function recipeNotice(item) {
   const recipe = S.recipeOf(item);
   const meta = item.meta;
   if (item.recipe && !item.recipe.ingredients.length && !item.recipe.steps.length && !item.recipe.yields) {
-    return '<p class="notice">Przepis ze strony jest ukryty. <button type="button" class="link" data-action="recipe-reset">Pokaż go znowu</button></p>';
+    return `<p class="notice">${t('pageRecipeHidden')} ${actionLink('recipe-reset')(t('showAgain'))}</p>`;
   }
   if (recipe) return '';
-  if (!item.url) return '<p class="notice">Ten przepis jest jeszcze pusty. <button type="button" class="link" data-action="edit-recipe">Wpisz go</button></p>';
-  if (!meta) {
-    return syncConfig
-      ? '<p class="notice">Przepis pojawi się za minutę lub dwie, gdy GitHub pobierze stronę.</p>'
-      : '<p class="notice">Przepis ze strony pobiera GitHub. Połącz aplikację z GitHubem w <button type="button" class="link" data-action="settings">ustawieniach</button> albo wpisz przepis sam.</p>';
-  }
-  if (meta.error) {
-    const again = (meta.attempts ?? 1) < 3 ? ' GitHub spróbuje jeszcze raz za dzień.' : '';
-    return `<p class="notice">Nie udało się pobrać strony (${esc(meta.error)}).${again} Możesz wpisać przepis sam.</p>`;
-  }
-  const why = meta.via === 'page' ? ' Strona nie ma danych przepisu w kodzie, a odczyt tekstu przez model językowy jest wyłączony (brak klucza w repozytorium).' : '';
-  return `<p class="notice">Na stronie nie znaleziono przepisu.${why} Możesz wpisać go sam.</p>`;
+  if (!item.url) return `<p class="notice">${t('recipeBlank')} ${actionLink('edit-recipe')(t('fillIn'))}</p>`;
+  if (!meta) return `<p class="notice">${syncConfig ? t('recipeSoon') : t('recipeNeedsSync', actionLink('settings'))}</p>`;
+  if (meta.error) return `<p class="notice">${t('fetchFailed', esc(meta.error), (meta.attempts ?? 1) < 3)}</p>`;
+  return `<p class="notice">${t('noRecipeFound', meta.via === 'page')}</p>`;
 }
 
 function checklist(id, kind, sections) {
@@ -456,14 +462,6 @@ function checklist(id, kind, sections) {
     .join('');
 }
 
-const SOURCE_NOTE = {
-  schema: 'Przepis z danych na stronie.',
-  claude: 'Przepis odczytany z tekstu strony przez model Claude; może mieć błędy.',
-  mistral: 'Przepis odczytany z tekstu strony przez model Mistral; może mieć błędy.',
-  hand: 'Przepis poprawiony ręcznie.',
-  own: 'Przepis wpisany ręcznie.',
-};
-
 function recipeView(item) {
   const recipe = S.recipeOf(item);
   const done = item.status === 'done';
@@ -473,26 +471,27 @@ function recipeView(item) {
     ? `<div class="item-tags">${item.tags.map((t) => `<span class="tag">#${esc(t)}</span>`).join('')}</div>`
     : '';
   const ingredients = recipe?.ingredients.length
-    ? `<section class="part"><h2>Składniki</h2>${checklist(item.id, 'i', recipe.ingredients)}</section>`
+    ? `<section class="part"><h2>${t('ingredients')}</h2>${checklist(item.id, 'i', recipe.ingredients)}</section>`
     : '';
-  const steps = recipe?.steps.length ? `<section class="part"><h2>Przygotowanie</h2>${checklist(item.id, 's', recipe.steps)}</section>` : '';
+  const steps = recipe?.steps.length ? `<section class="part"><h2>${t('method')}</h2>${checklist(item.id, 's', recipe.steps)}</section>` : '';
   const hasContent = recipe && (recipe.ingredients.length || recipe.steps.length || recipe.yields);
   const wake =
     'wakeLock' in navigator && hasContent
-      ? `<button class="btn${ui.wake ? ' on' : ''}" type="button" data-action="wake" aria-pressed="${Boolean(ui.wake)}">${ICON.sun} Nie wygaszaj ekranu</button>`
+      ? `<button class="btn${ui.wake ? ' on' : ''}" type="button" data-action="wake" aria-pressed="${Boolean(ui.wake)}">${ICON.sun} ${t('keepAwake')}</button>`
       : '';
-  const source = SOURCE_NOTE[item.url ? S.recipeSource(item) : recipe && 'own'];
+  const sourceKind = item.url ? S.recipeSource(item) : recipe && 'own';
+  const source = sourceKind ? t(`source_${sourceKind}`) : '';
   const origin = item.url
     ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(S.siteOf(item))} ${ICON.out}</a>${author}`
-    : 'Własny przepis';
+    : t('ownRecipe');
   return `<header class="bar">
-      <button class="icon-btn" type="button" data-action="back" aria-label="Wróć" title="Wróć">${ICON.back}</button>
-      <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="edit" aria-label="Tytuł, tagi i notatka" title="Tytuł, tagi i notatka">${ICON.edit}</button></div>
+      <button class="icon-btn" type="button" data-action="back" aria-label="${t('back')}" title="${t('back')}">${ICON.back}</button>
+      <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="share" aria-label="${t('share')}" title="${t('share')}">${ICON.share}</button><button class="icon-btn" type="button" data-action="edit" aria-label="${t('titleTagsNote')}" title="${t('titleTagsNote')}">${ICON.edit}</button></div>
     </header>
     ${notices()}
     <article class="recipe" data-id="${esc(item.id)}">
       ${imageTag(item, 'hero')}
-      <h1 class="recipe-title">${esc(S.titleOf(item))}</h1>
+      <h1 class="recipe-title">${esc(titleOf(item))}</h1>
       <p class="recipe-source">${origin}</p>
       ${facts ? `<p class="recipe-facts">${esc(facts)}</p>` : ''}
       ${tags}
@@ -501,8 +500,8 @@ function recipeView(item) {
       ${ingredients}
       ${steps}
       <div class="row recipe-actions">
-        <button class="btn${done ? ' on' : ''}" type="button" data-action="toggle" aria-pressed="${done}">${ICON.check} Wypróbowany</button>
-        <button class="btn" type="button" data-action="edit-recipe">${hasContent ? 'Popraw przepis' : 'Wpisz przepis'}</button>
+        <button class="btn${done ? ' on' : ''}" type="button" data-action="toggle" aria-pressed="${done}">${ICON.check} ${t('tried')}</button>
+        <button class="btn" type="button" data-action="edit-recipe">${hasContent ? t('correctRecipe') : t('enterRecipe')}</button>
         ${wake}
       </div>
       ${source ? `<p class="field-note">${source}</p>` : ''}
@@ -537,7 +536,7 @@ async function setWake(on) {
     });
   } catch {
     ui.wantWake = false;
-    toast('Przeglądarka nie pozwoliła wyłączyć wygaszania ekranu.');
+    toast(t('wakeRefused'));
   }
 }
 
@@ -554,7 +553,7 @@ function renderSheet() {
   const key = `${ui.editMode}:${item.id}`;
   if (sheet.open && sheet.dataset.key === key) return; // keep what is being typed
   sheet.dataset.key = key;
-  sheet.setAttribute('aria-label', ui.editMode === 'recipe' ? 'Edycja przepisu' : 'Tytuł, tagi i notatka');
+  sheet.setAttribute('aria-label', ui.editMode === 'recipe' ? t('editRecipe') : t('titleTagsNote'));
   sheet.innerHTML = ui.editMode === 'recipe' ? recipeForm(item) : itemForm(item);
   if (!sheet.open) {
     sheet.showModal();
@@ -567,57 +566,57 @@ function renderSheet() {
 function itemForm(item) {
   const known = S.tagCounts(doc.items).map(([t]) => t);
   const suggestions = known.length
-    ? `<div class="chips tag-suggest" aria-label="Twoje tagi">${known
+    ? `<div class="chips tag-suggest" aria-label="${t('yourTags')}">${known
         .slice(0, 40)
         .map((t) => `<button type="button" class="chip${item.tags.includes(t) ? ' on' : ''}" data-action="sheet-tag" data-value="${esc(t)}">#${esc(t)}</button>`)
         .join('')}</div>`
     : '';
-  const page = item.meta?.title && item.meta.title !== item.title ? `<p class="field-note">Tytuł na stronie: „${esc(item.meta.title)}”.</p>` : '';
+  const page = item.meta?.title && item.meta.title !== item.title ? `<p class="field-note">${t('pageTitle', esc(item.meta.title))}</p>` : '';
   return `<form method="dialog" id="edit-form" class="edit">
     <div class="sheet-head">
-      <h2>${ui.editIntro ? esc(ui.editIntro) : 'Edycja'}</h2>
-      <button type="button" class="icon-btn small" data-action="sheet-close" aria-label="Zamknij">${ICON.close}</button>
+      <h2>${ui.editIntro ? esc(ui.editIntro) : t('edit')}</h2>
+      <button type="button" class="icon-btn small" data-action="sheet-close" aria-label="${t('close')}">${ICON.close}</button>
     </div>
     ${item.url ? `<a class="sheet-link" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(S.prettyUrl(item.url))}</a>` : ''}
-    ${ui.editIntro && item.url && !item.meta ? `<p class="field-note">${syncConfig ? 'Porcje, składniki i kroki pojawią się po synchronizacji, gdy GitHub pobierze stronę.' : 'Bez połączenia z GitHubem przepis trzeba wpisać samemu.'}</p>` : ''}
-    <label for="f-title">Tytuł</label>
+    ${ui.editIntro && item.url && !item.meta ? `<p class="field-note">${syncConfig ? t('afterSync') : t('withoutSync')}</p>` : ''}
+    <label for="f-title">${t('title')}</label>
     <input id="f-title" name="title" type="text" value="${esc(item.title)}" placeholder="${esc(item.meta?.title || (item.url ? S.prettyUrl(item.url) : ''))}">
     ${page}
-    <label for="f-tags">Tagi <span class="hint">(oddzielone przecinkami)</span></label>
+    <label for="f-tags">${t('tags')} <span class="hint">${t('tagsHint')}</span></label>
     <input id="f-tags" name="tags" type="text" value="${esc(item.tags.join(', '))}" autocapitalize="off" spellcheck="false">
     ${suggestions}
-    <label for="f-note">Notatka</label>
+    <label for="f-note">${t('note')}</label>
     <textarea id="f-note" name="note" rows="3">${esc(item.note)}</textarea>
-    <label for="f-url">Adres${item.url ? '' : ' <span class="hint">(strona z przepisem, jeśli jest)</span>'}</label>
+    <label for="f-url">${t('address')}${item.url ? '' : ` <span class="hint">${t('addressHint')}</span>`}</label>
     <input id="f-url" name="url" type="url" value="${esc(item.url)}" autocapitalize="off" spellcheck="false">
-    <label class="check-row"><input type="checkbox" name="done"${item.status === 'done' ? ' checked' : ''}> Wypróbowany</label>
+    <label class="check-row"><input type="checkbox" name="done"${item.status === 'done' ? ' checked' : ''}> ${t('tried')}</label>
     <div class="sheet-actions">
-      <button type="button" class="btn${ui.confirmDelete ? ' danger' : ''}" data-action="delete">${ui.confirmDelete ? 'Na pewno usunąć?' : 'Usuń'}</button>
-      <button type="submit" class="btn primary">Gotowe</button>
+      <button type="button" class="btn${ui.confirmDelete ? ' danger' : ''}" data-action="delete">${ui.confirmDelete ? t('confirmDelete') : t('delete')}</button>
+      <button type="submit" class="btn primary">${t('done')}</button>
     </div>
   </form>`;
 }
 
 function recipeForm(item) {
   const f = ui.editBase ?? S.recipeToForm(null);
-  const reset = item.recipe && item.meta?.recipe ? '<button type="button" class="btn" data-action="recipe-reset">Przywróć przepis ze strony</button>' : '<span></span>';
+  const reset = item.recipe && item.meta?.recipe ? `<button type="button" class="btn" data-action="recipe-reset">${t('restorePage')}</button>` : '<span></span>';
   return `<form method="dialog" id="recipe-form" class="edit">
     <div class="sheet-head">
-      <h2>Przepis</h2>
-      <button type="button" class="icon-btn small" data-action="sheet-close" aria-label="Zamknij">${ICON.close}</button>
+      <h2>${t('recipe')}</h2>
+      <button type="button" class="icon-btn small" data-action="sheet-close" aria-label="${t('close')}">${ICON.close}</button>
     </div>
-    <p class="field-note">Jeden składnik albo krok w wierszu. Wiersz zaczynający się od # to nagłówek części, np. „# Ciasto”.</p>
-    ${item.url ? '' : `<label for="r-title">Tytuł</label>
+    <p class="field-note">${t('formHelp')}</p>
+    ${item.url ? '' : `<label for="r-title">${t('title')}</label>
     <input id="r-title" name="title" type="text" value="${esc(item.title)}">`}
-    <label for="r-yields">Dla ilu osób</label>
-    <input id="r-yields" name="yields" type="text" value="${esc(f.yields)}" placeholder="np. 4 albo „około 20 pierogów”">
-    <label for="r-ingredients">Składniki</label>
+    <label for="r-yields">${t('servings')}</label>
+    <input id="r-yields" name="yields" type="text" value="${esc(f.yields)}" placeholder="${esc(t('servingsExample'))}">
+    <label for="r-ingredients">${t('ingredients')}</label>
     <textarea id="r-ingredients" name="ingredients" rows="8">${esc(f.ingredients)}</textarea>
-    <label for="r-steps">Kroki</label>
+    <label for="r-steps">${t('steps')}</label>
     <textarea id="r-steps" name="steps" rows="10">${esc(f.steps)}</textarea>
     <div class="sheet-actions">
       ${reset}
-      <button type="submit" class="btn primary">Gotowe</button>
+      <button type="submit" class="btn primary">${t('done')}</button>
     </div>
   </form>`;
 }
@@ -692,99 +691,116 @@ function settingsView() {
   const base = new URL('./', location.href).href;
   const bookmarklet = `javascript:(()=>{window.open('${base}?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title),'przepisy')})()`;
   const tags = S.tagCounts(doc.items);
+  const code = (text) => `<a href="https://github.com/gchrupala/przepisy" target="_blank" rel="noopener">${text}</a>`;
   return `<header class="bar">
-      <button class="icon-btn" type="button" data-action="back" aria-label="Wróć">${ICON.back}</button>
-      <h1>Ustawienia</h1>
+      <button class="icon-btn" type="button" data-action="back" aria-label="${t('back')}">${ICON.back}</button>
+      <h1>${t('settings')}</h1>
       <span></span>
     </header>
     ${notices()}
+    ${langSection()}
     ${syncSection()}
     <section>
-      <h2>Dodawanie przepisów</h2>
+      <h2>${t('adding')}</h2>
       <h3>Android</h3>
-      <p>Zainstaluj aplikację: w Chrome menu ⋮ → „Zainstaluj aplikację” (albo „Dodaj do ekranu głównego”). Potem w dowolnej aplikacji wybierz „Udostępnij” → <strong>Przepisy</strong>.</p>
-      <h3>iPhone i iPad</h3>
-      <p>Safari nie pozwala aplikacjom z sieci odbierać udostępnień. Można zrobić skrót w aplikacji Skróty:</p>
+      <p>${t('android')}</p>
+      <h3>${t('ios')}</h3>
+      <p>${t('iosIntro')}</p>
       <ol>
-        <li>Nowy skrót → w ustawieniach skrótu włącz „Pokaż w arkuszu udostępniania”, typ: adresy URL.</li>
-        <li>Dodaj czynność „Tekst” z treścią <code>${esc(base)}?url=</code> i zaraz po niej zmienną „Dane wejściowe skrótu”.</li>
-        <li>Dodaj czynność „Otwórz adresy URL”.</li>
+        <li>${t('iosStep1')}</li>
+        <li>${t('iosStep2', `<code>${esc(base)}?url=</code>`)}</li>
+        <li>${t('iosStep3')}</li>
       </ol>
-      <p class="field-note">Skrót otwiera Przepisy w Safari. Dane w Safari i w aplikacji dodanej do ekranu początkowego są na iPhonie osobne; połącz obie z GitHubem, a będą takie same.</p>
-      <h3>Komputer</h3>
-      <p>Przeciągnij ten przycisk na pasek zakładek: <a class="btn bookmarklet" href="${esc(bookmarklet)}" data-action="bookmarklet">+ Przepisy</a>. Kliknięty na stronie z przepisem zapisuje ją tutaj. Można też wkleić link w pole wyszukiwania.</p>
+      <p class="field-note">${t('iosNote')}</p>
+      <h3>${t('computer')}</h3>
+      <p>${t('bookmarklet', `<a class="btn bookmarklet" href="${esc(bookmarklet)}" data-action="bookmarklet">+ Przepisy</a>`)}</p>
     </section>
     <section>
-      <h2>Skąd się bierze przepis</h2>
-      <p>Przeglądarka nie może pobierać cudzych stron, więc robi to GitHub Action w repozytorium z danymi, po każdej synchronizacji. Większość stron z przepisami ma w kodzie dane przepisu (schema.org); wtedy porcje, składniki i kroki są takie jak na stronie. Inne strony czyta model językowy: Claude, jeśli w repozytorium jest sekret <code>ANTHROPIC_API_KEY</code>, a bez niego Mistral, jeśli jest sekret <code>MISTRAL_API_KEY</code>.</p>
-      <p class="field-note">Strony za logowaniem (Instagram, TikTok, część serwisów) zwykle się nie pobiorą. Taki przepis można wpisać samemu: „Wpisz przepis” w widoku przepisu.</p>
+      <h2>${t('whereFrom')}</h2>
+      <p>${t('whereFromBody')}</p>
+      <p class="field-note">${t('whereFromNote')}</p>
     </section>
     ${tags.length ? tagsSection(tags) : ''}
     <section>
-      <h2>Kopia danych</h2>
-      <p>Przepisów: ${total}. Kopia to plik JSON; wczytanie dołącza jego przepisy do obecnych.</p>
+      <h2>${t('backup')}</h2>
+      <p>${t('backupBody', total)}</p>
       <div class="row">
-        <button class="btn" type="button" data-action="export">Pobierz kopię</button>
-        <label class="btn file-btn">Wczytaj kopię<input type="file" accept="application/json,.json" data-action="import" hidden></label>
+        <button class="btn" type="button" data-action="export">${t('download')}</button>
+        <label class="btn file-btn">${t('load')}<input type="file" accept="application/json,.json" data-action="import" hidden></label>
       </div>
       ${ui.importMsg ? `<p class="field-note" role="status">${esc(ui.importMsg)}</p>` : ''}
     </section>
-    <p class="version">Przepisy · wersja ${VERSION} · <a href="https://github.com/gchrupala/przepisy" target="_blank" rel="noopener">kod</a></p>`;
+    <p class="version">${t('version', VERSION, code)}</p>`;
+}
+
+// The language names stay in their own language, and the heading is in
+// both, so the switch is easy to find in a language one cannot read.
+const LANG_NAMES = { pl: 'Polski', en: 'English' };
+
+function langSection() {
+  const other = LANGS.find((l) => l !== getLang());
+  const option = (value, label) =>
+    `<button class="btn${prefs.lang === value ? ' on' : ''}" type="button" data-action="lang" data-value="${value}" aria-pressed="${prefs.lang === value}">${label}</button>`;
+  return `<section>
+    <h2>${t('language')} · ${STRINGS[other].language}</h2>
+    <div class="row">${option('auto', t('langAuto'))}${LANGS.map((l) => option(l, LANG_NAMES[l])).join('')}</div>
+  </section>`;
 }
 
 function tagsSection(tags) {
   return `<section>
-    <h2>Tagi</h2>
+    <h2>${t('tags')}</h2>
     <ul class="tag-list">${tags
       .map(
-        ([t, n]) => `<li><span>#${esc(t)} <span class="count">${n}</span></span>
-        <span class="row"><button class="btn small" type="button" data-action="rename-tag" data-value="${esc(t)}">Zmień nazwę</button>
-        <button class="btn small" type="button" data-action="remove-tag" data-value="${esc(t)}">Usuń</button></span></li>`,
+        ([tag, n]) => `<li><span>#${esc(tag)} <span class="count">${n}</span></span>
+        <span class="row"><button class="btn small" type="button" data-action="rename-tag" data-value="${esc(tag)}">${t('rename')}</button>
+        <button class="btn small" type="button" data-action="remove-tag" data-value="${esc(tag)}">${t('delete')}</button></span></li>`,
       )
       .join('')}</ul>
   </section>`;
 }
 
-const SYNC_FROM = { 'doczytania:sync': 'Doczytaniami', 'myo:sync': 'Myo' };
+const SYNC_FROM = { 'doczytania:sync': 'doczytania', 'myo:sync': 'myo' };
 
 function syncSection() {
   const c = syncConfig;
   const error = c ? c.error : ui.syncError;
-  const errorHtml = error ? `<p class="error" role="alert">${esc(SYNC_ERRORS[error] ?? SYNC_ERRORS.bad)}</p>` : '';
-  const head = '<h2>Synchronizacja z GitHubem</h2>';
+  const errorHtml = error ? `<p class="error" role="alert">${esc(syncErrorText(error))}</p>` : '';
+  const head = `<h2>${t('syncHead')}</h2>`;
   if (c) {
-    const status = sync.busy ? 'Synchronizuję…' : c.lastSyncAt ? `Ostatnio: ${ago(c.lastSyncAt)}.` : 'Jeszcze nie zsynchronizowano.';
+    const status = sync.busy ? t('syncing') : c.lastSyncAt ? t('lastSync', ago(c.lastSyncAt)) : t('neverSynced');
     return `<section>${head}
-      <p>Połączono z <strong>${esc(c.repo)}</strong>, plik <code>${esc(syncPath(c.person))}</code>.</p>
+      <p>${t('connectedTo', esc(c.repo), esc(syncPath(c.person)))}</p>
       <p class="field-note" role="status">${esc(status)}</p>
       ${errorHtml}
       <div class="row">
-        <button class="btn" type="button" data-action="sync-now"${sync.busy ? ' disabled' : ''}>Synchronizuj teraz</button>
-        <button class="btn${ui.confirmDisconnect ? ' danger' : ''}" type="button" data-action="sync-off">${ui.confirmDisconnect ? 'Na pewno odłączyć?' : 'Odłącz'}</button>
+        <button class="btn" type="button" data-action="sync-now"${sync.busy ? ' disabled' : ''}>${t('syncNow')}</button>
+        <button class="btn${ui.confirmDisconnect ? ' danger' : ''}" type="button" data-action="sync-off">${ui.confirmDisconnect ? t('confirmDisconnect') : t('disconnect')}</button>
       </div>
-      <p class="field-note">Odłączenie usuwa token z tego urządzenia. Przepisy zostają tu i w repozytorium.</p>
+      <p class="field-note">${t('disconnectNote')}</p>
     </section>`;
   }
-  const from = ui.syncToken && !ui.syncError && SYNC_FROM[ui.syncFrom]
-    ? `<p class="field-note">Formularz wypełniono danymi połączenia z ${SYNC_FROM[ui.syncFrom]} na tym urządzeniu.</p>`
-    : '';
+  const from = ui.syncToken && !ui.syncError && SYNC_FROM[ui.syncFrom] ? `<p class="field-note">${t('filledFrom', SYNC_FROM[ui.syncFrom])}</p>` : '';
+  const newRepo = '<a href="https://github.com/new?name=app-data&amp;visibility=private" target="_blank" rel="noopener">github.com/new</a>';
+  const newToken =
+    '<a href="https://github.com/settings/personal-access-tokens/new?name=Przepisy&amp;description=Przepisy+sync&amp;expires_in=366&amp;contents=write" target="_blank" rel="noopener">github.com/settings/personal-access-tokens</a>';
   return `<section>${head}
-    <p class="field-note">Przepisy trafiają do pliku <code>&lt;imię&gt;/przepisy.json</code> w prywatnym repozytorium, tak jak w Doczytaniach i Myo. Każde urządzenie połączone z tym samym repozytorium i imieniem ma te same przepisy. Bez połączenia aplikacja działa, ale nie wyciąga przepisów ze stron.</p>
+    <p class="field-note">${t('syncIntro')}</p>
     <ol>
-      <li>Prywatne repozytorium, np. <code>app-data</code>: <a href="https://github.com/new?name=app-data&amp;visibility=private" target="_blank" rel="noopener">github.com/new</a> (albo istniejące).</li>
-      <li>Token z uprawnieniem „Contents: Read and write” do tego repozytorium: <a href="https://github.com/settings/personal-access-tokens/new?name=Przepisy&amp;description=Przepisy+sync&amp;expires_in=366&amp;contents=write" target="_blank" rel="noopener">github.com/settings/personal-access-tokens</a>. Może być ten sam co w Doczytaniach.</li>
-      <li>Wpisz poniżej repozytorium, imię i token.</li>
+      <li>${t('syncStep1', newRepo)}</li>
+      <li>${t('syncStep2', newToken)}</li>
+      <li>${t('syncStep3')}</li>
     </ol>
     ${from}
     <form id="sync-form" class="edit" novalidate>
-      <label for="sync-repo">Repozytorium</label>
-      <input id="sync-repo" type="text" placeholder="właściciel/nazwa" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(ui.syncRepo ?? DEFAULT_SYNC_REPO)}">
-      <label for="sync-person">Imię</label>
-      <input id="sync-person" type="text" placeholder="np. Grzegorz" autocomplete="off" spellcheck="false" value="${esc(ui.syncPerson ?? '')}">
-      <label for="sync-token">Token</label>
+      <label for="sync-repo">${t('repo')}</label>
+      <input id="sync-repo" type="text" placeholder="${t('repoPlaceholder')}" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(ui.syncRepo ?? DEFAULT_SYNC_REPO)}">
+      <label for="sync-person">${t('person')}</label>
+      <input id="sync-person" type="text" placeholder="${t('personPlaceholder')}" autocomplete="off" spellcheck="false" value="${esc(ui.syncPerson ?? '')}">
+      <label for="sync-token">${t('token')}</label>
       <input id="sync-token" class="token" type="text" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(ui.syncToken ?? '')}">
       ${errorHtml}
-      <button class="btn primary wide" type="submit"${ui.syncConnecting ? ' disabled' : ''}>${ui.syncConnecting ? 'Łączę…' : 'Połącz'}</button>
+      <button class="btn primary wide" type="submit"${ui.syncConnecting ? ' disabled' : ''}>${ui.syncConnecting ? t('connecting') : t('connect')}</button>
     </form>
   </section>`;
 }
@@ -886,7 +902,7 @@ function addLink(input, { fromShare = false } = {}) {
   const now = Date.now();
   const res = S.addItem(doc, input, now);
   if (!res) {
-    toast('To nie jest link, który da się zapisać.');
+    toast(t('notALink'));
     return null;
   }
   sync.metaChecks = 0;
@@ -897,13 +913,13 @@ function addLink(input, { fromShare = false } = {}) {
   ui.query = '';
   if (fromShare) {
     openRecipe(res.item.id);
-    openEdit(res.item.id, 'item', res.existed ? 'Już był zapisany' : 'Zapisano');
+    openEdit(res.item.id, 'item', res.existed ? t('alreadySaved') : t('saved'));
   } else if (res.existed) {
     openRecipe(res.item.id);
-    toast('Ten przepis już był zapisany.');
+    toast(t('wasSaved'));
   } else {
     render();
-    toast('Zapisano.', 'Otwórz', () => openRecipe(res.item.id));
+    toast(t('savedToast'), t('open'), () => openRecipe(res.item.id));
   }
   return res;
 }
@@ -928,7 +944,32 @@ function takeSharedLink() {
     // The parameters then stay in the address bar; harmless.
   }
   if (shared) addLink(shared, { fromShare: true });
-  else toast('W udostępnionym tekście nie było linku.');
+  else toast(t('noLinkShared'));
+}
+
+// ---------- sharing a recipe ----------
+
+// The system share sheet with the recipe as text (and the address of the
+// page in it); where there is none, the text goes to the clipboard.
+// A recipient with Przepisy can share the message on to it: the address
+// in the text is enough to add the recipe.
+async function shareRecipe(item) {
+  if (!item) return;
+  const data = { title: titleOf(item), text: S.recipeText(item, getLang()) };
+  if (navigator.share && (navigator.canShare?.(data) ?? true)) {
+    try {
+      await navigator.share(data);
+      return;
+    } catch (e) {
+      if (e?.name === 'AbortError') return; // closed by the user
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(data.text);
+    toast(t('copied'));
+  } catch {
+    toast(t('shareFailed'));
+  }
 }
 
 // ---------- backup ----------
@@ -951,9 +992,9 @@ async function importDoc(file) {
     const before = doc.items.length;
     doc = S.mergeDocs(doc, parsed);
     persist();
-    ui.importMsg = `Wczytano. Nowych przepisów: ${doc.items.length - before}.`;
+    ui.importMsg = t('imported', doc.items.length - before);
   } catch {
-    ui.importMsg = 'To nie jest plik z kopią Przepisów.';
+    ui.importMsg = t('notBackup');
   }
   render();
 }
@@ -1022,9 +1063,9 @@ function onClick(e) {
         .then((text) => {
           const shared = S.extractShared({ text });
           if (shared) addLink(shared);
-          else toast('W schowku nie ma linku.');
+          else toast(t('noLinkClipboard'));
         })
-        .catch(() => toast('Przeglądarka nie dała dostępu do schowka. Wklej link w pole.'));
+        .catch(() => toast(t('noClipboard')));
       break;
     case 'open':
       openRecipe(id);
@@ -1043,6 +1084,16 @@ function onClick(e) {
       break;
     case 'edit':
       openEdit(ui.recipeId);
+      break;
+    case 'share':
+      shareRecipe(itemById(ui.recipeId));
+      break;
+    case 'lang':
+      prefs.lang = value;
+      savePrefs();
+      applyLang();
+      ui.importMsg = '';
+      render();
       break;
     case 'edit-recipe':
       openEdit(id, 'recipe');
@@ -1071,7 +1122,7 @@ function onClick(e) {
       if (!ui.confirmDelete) {
         ui.confirmDelete = true;
         el.classList.add('danger');
-        el.textContent = 'Na pewno usunąć?';
+        el.textContent = t('confirmDelete');
         break;
       }
       const item = S.deleteItem(doc, ui.editId, Date.now());
@@ -1079,7 +1130,7 @@ function onClick(e) {
       ui.confirmDelete = false;
       goHome();
       if (item) {
-        toast('Usunięto.', 'Cofnij', () => {
+        toast(t('deleted'), t('undo'), () => {
           S.restoreItem(doc, item);
           persist();
           render();
@@ -1096,13 +1147,13 @@ function onClick(e) {
     }
     case 'bookmarklet':
       e.preventDefault();
-      toast('Przeciągnij ten przycisk na pasek zakładek.');
+      toast(t('dragBookmarklet'));
       break;
     case 'export':
       exportDoc();
       break;
     case 'rename-tag': {
-      const to = prompt(`Nowa nazwa tagu #${value}:`, value);
+      const to = prompt(t('renameTag', value), value);
       if (to == null || !to.trim()) break;
       S.renameTag(doc, value, to, Date.now());
       persist();
@@ -1110,7 +1161,7 @@ function onClick(e) {
       break;
     }
     case 'remove-tag': {
-      if (!confirm(`Usunąć tag #${value} ze wszystkich przepisów?`)) break;
+      if (!confirm(t('removeTag', value))) break;
       S.renameTag(doc, value, '', Date.now());
       if (prefs.tag === value) prefs.tag = '';
       persist();

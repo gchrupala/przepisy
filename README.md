@@ -9,6 +9,8 @@ Adres: `https://gchrupala.github.io/przepisy/` (po włączeniu GitHub Pages: Set
 - **Dodawanie.** Android: po instalacji Przepisy są na liście „Udostępnij”. Komputer: przycisk „+ Przepisy” na pasku zakładek albo wklejenie linku w pole wyszukiwania. iPhone: skrót w aplikacji Skróty (instrukcje w ustawieniach).
 - **Własne przepisy.** Przycisk „+” na liście tworzy przepis bez strony: tytuł, porcje, składniki i kroki wpisuje się ręcznie. Adres można dopisać później.
 - **Przepis.** Widok przepisu pokazuje zdjęcie, liczbę osób, czas, składniki i kroki. Składniki i kroki można odhaczać w trakcie gotowania; przycisk „Nie wygaszaj ekranu” trzyma ekran włączony. Przepis da się poprawić albo wpisać ręcznie („Popraw przepis”); poprawka ma pierwszeństwo przed wyciągiem ze strony i można do niego wrócić.
+- **Udostępnianie.** Przycisk „Udostępnij” w widoku przepisu wysyła przepis jako tekst (tytuł, porcje, składniki, kroki i adres strony, bez notatki i tagów) przez systemowe menu udostępniania; gdzie go nie ma, kopiuje tekst do schowka. Odbiorca z Przepisami może udostępnić tę wiadomość dalej do aplikacji: adres w tekście wystarczy, żeby zapisać przepis.
+- **Język.** Interfejs po polsku albo po angielsku; domyślnie według języka przeglądarki, do zmiany w ustawieniach.
 - **Porządkowanie i szukanie.** Zakładki „Wszystkie”, „Do wypróbowania”, „Wypróbowane”, tagi, notatka. Szukanie po tytule, serwisie, tagach, notatce i składnikach, bez polskich znaków i z grubsza bez końcówek („pomidory” znajdzie „pomidorów”).
 
 ## Skąd się bierze przepis
@@ -38,5 +40,6 @@ npm test    # testy logiki (Node 18+)
 | `js/store.js` | model danych: adresy, przepisy, poprawki, tagi, wyszukiwanie, łączenie kopii |
 | `js/sync.js` | synchronizacja z plikiem w repozytorium GitHub |
 | `js/app.js` | widoki i obsługa zdarzeń |
+| `js/i18n.js` | teksty interfejsu po polsku i angielsku |
 | `sw.js` | praca bez internetu |
 | `test/` | testy `node --test` |
