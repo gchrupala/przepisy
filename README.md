@@ -10,7 +10,7 @@ Adres: `https://gchrupala.github.io/przepisy/` (po włączeniu GitHub Pages: Set
 - **Własne przepisy.** Przycisk „+” na liście tworzy przepis bez strony: tytuł, porcje, składniki i kroki wpisuje się ręcznie. Adres można dopisać później.
 - **Przepis.** Widok przepisu pokazuje zdjęcie, liczbę osób, czas, składniki i kroki. Składniki i kroki można odhaczać w trakcie gotowania; przycisk „Nie wygaszaj ekranu” trzyma ekran włączony. Przepis da się poprawić albo wpisać ręcznie („Popraw przepis”); poprawka ma pierwszeństwo przed wyciągiem ze strony i można do niego wrócić.
 - **Udostępnianie.** Przycisk „Udostępnij” w widoku przepisu wysyła przepis jako tekst (tytuł, porcje, składniki, kroki i adres strony, bez notatki i tagów) przez systemowe menu udostępniania; gdzie go nie ma, kopiuje tekst do schowka. Odbiorca z Przepisami może udostępnić tę wiadomość dalej do aplikacji: adres w tekście wystarczy, żeby zapisać przepis.
-- **Język.** Interfejs po polsku albo po angielsku; domyślnie według języka przeglądarki, do zmiany w ustawieniach.
+- **Język.** Interfejs po polsku albo po angielsku; domyślnie według języka przeglądarki. Przełącznik PL | EN jest na liście przepisów; w ustawieniach można wrócić do języka przeglądarki.
 - **Porządkowanie i szukanie.** Zakładki „Wszystkie”, „Do wypróbowania”, „Wypróbowane”, tagi, notatka. Szukanie po tytule, serwisie, tagach, notatce i składnikach, bez polskich znaków i z grubsza bez końcówek („pomidory” znajdzie „pomidorów”).
 
 ## Skąd się bierze przepis

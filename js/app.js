@@ -324,10 +324,18 @@ function notices() {
   return out.join('');
 }
 
+// PL | EN on the list: the current language stands out. A choice made
+// here replaces 'auto'; settings can go back to it.
+function langToggle() {
+  const option = (l) =>
+    `<button type="button" lang="${l}" data-action="lang" data-value="${l}" aria-pressed="${getLang() === l}" title="${LANG_NAMES[l]}">${l.toUpperCase()}</button>`;
+  return `<div class="lang-toggle" role="group" aria-label="${t('language')}">${LANGS.map(option).join('<span aria-hidden="true">|</span>')}</div>`;
+}
+
 function listView() {
   return `<header class="bar">
       <h1>Przepisy</h1>
-      <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="new-recipe" aria-label="${t('newRecipe')}" title="${t('newRecipe')}">${ICON.plus}</button><button class="icon-btn" type="button" data-action="settings" aria-label="${t('settings')}" title="${t('settings')}">${ICON.gear}</button></div>
+      <div class="bar-actions">${langToggle()}${syncButton()}<button class="icon-btn" type="button" data-action="new-recipe" aria-label="${t('newRecipe')}" title="${t('newRecipe')}">${ICON.plus}</button><button class="icon-btn" type="button" data-action="settings" aria-label="${t('settings')}" title="${t('settings')}">${ICON.gear}</button></div>
     </header>
     ${notices()}
     <form class="search" id="search-form" role="search">

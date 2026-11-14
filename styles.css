@@ -94,7 +94,54 @@ code {
 
 .bar-actions {
   display: flex;
+  align-items: center;
   gap: 4px;
+}
+
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 2px;
+  color: var(--line);
+  font-size: 0.85rem;
+}
+
+.lang-toggle button {
+  min-width: 32px;
+  height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.lang-toggle button:hover {
+  color: var(--text);
+}
+
+.lang-toggle button[aria-pressed='true'] {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* The smallest phones: the title, PL | EN and three icons in one row. */
+@media (max-width: 359px) {
+  .bar-actions {
+    gap: 0;
+  }
+
+  .bar-actions .icon-btn {
+    width: 38px;
+  }
+
+  .lang-toggle button {
+    min-width: 28px;
+    padding: 0 2px;
+  }
 }
 
 /* ---------- buttons ---------- */
