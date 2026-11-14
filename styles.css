@@ -776,6 +776,58 @@ section .edit {
   padding: 0;
 }
 
+/* Explanations, collapsed until asked for. */
+section details {
+  border-top: 1px solid var(--line);
+}
+
+section > h2 + details {
+  border-top: 0;
+}
+
+section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  list-style: none;
+  cursor: pointer;
+}
+
+section summary::-webkit-details-marker {
+  display: none;
+}
+
+section summary::after {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: -4px 6px 0 0;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  rotate: 45deg;
+  transition: rotate 0.15s;
+  content: '';
+}
+
+section details[open] > summary::after {
+  margin-top: 4px;
+  rotate: 225deg;
+}
+
+section details > :last-child {
+  margin-bottom: 14px;
+}
+
+section details p:first-of-type {
+  margin-top: 2px;
+}
+
+.field-note + details {
+  margin-top: 8px;
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;

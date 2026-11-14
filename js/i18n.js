@@ -130,21 +130,22 @@ const pl = {
 
   // settings
   language: 'Język',
-  langAuto: 'Jak w przeglądarce',
-  adding: 'Dodawanie przepisów',
+  langAuto: 'Auto',
   android:
     'Zainstaluj aplikację: w Chrome menu ⋮ → „Zainstaluj aplikację” (albo „Dodaj do ekranu głównego”). Potem w dowolnej aplikacji wybierz „Udostępnij” → <strong>Przepisy</strong>.',
-  ios: 'iPhone i iPad',
   iosIntro: 'Safari nie pozwala aplikacjom z sieci odbierać udostępnień. Można zrobić skrót w aplikacji Skróty:',
   iosStep1: 'Nowy skrót → w ustawieniach skrótu włącz „Pokaż w arkuszu udostępniania”, typ: adresy URL.',
   iosStep2: (code) => `Dodaj czynność „Tekst” z treścią ${code} i zaraz po niej zmienną „Dane wejściowe skrótu”.`,
   iosStep3: 'Dodaj czynność „Otwórz adresy URL”.',
   iosNote:
     'Skrót otwiera Przepisy w Safari. Dane w Safari i w aplikacji dodanej do ekranu początkowego są na iPhonie osobne; połącz obie z GitHubem, a będą takie same.',
-  computer: 'Komputer',
   bookmarklet: (button) =>
     `Przeciągnij ten przycisk na pasek zakładek: ${button}. Kliknięty na stronie z przepisem zapisuje ją tutaj. Można też wkleić link w pole wyszukiwania.`,
   dragBookmarklet: 'Przeciągnij ten przycisk na pasek zakładek.',
+  help: 'Pomoc',
+  helpAndroid: 'Dodawanie na Androidzie',
+  helpIos: 'Dodawanie na iPhonie i iPadzie',
+  helpComputer: 'Dodawanie na komputerze',
   whereFrom: 'Skąd się bierze przepis',
   whereFromBody:
     'Przeglądarka nie może pobierać cudzych stron, więc robi to GitHub Action w repozytorium z danymi, po każdej synchronizacji. Większość stron z przepisami ma w kodzie dane przepisu (schema.org); wtedy porcje, składniki i kroki są takie jak na stronie. Inne strony czyta model językowy: Claude, jeśli w repozytorium jest sekret <code>ANTHROPIC_API_KEY</code>, a bez niego Mistral, jeśli jest sekret <code>MISTRAL_API_KEY</code>.',
@@ -154,7 +155,6 @@ const pl = {
   renameTag: (tag) => `Nowa nazwa tagu #${tag}:`,
   removeTag: (tag) => `Usunąć tag #${tag} ze wszystkich przepisów?`,
   backup: 'Kopia danych',
-  backupBody: (n) => `Przepisów: ${n}. Kopia to plik JSON; wczytanie dołącza jego przepisy do obecnych.`,
   download: 'Pobierz kopię',
   load: 'Wczytaj kopię',
   imported: (n) => `Wczytano. Nowych przepisów: ${n}.`,
@@ -163,6 +163,8 @@ const pl = {
 
   // sync settings
   syncHead: 'Synchronizacja z GitHubem',
+  syncShort: 'Te same przepisy na wszystkich urządzeniach i przepisy pobierane ze stron.',
+  syncHow: 'Jak połączyć',
   lastSync: (ago) => `Ostatnio: ${ago}.`,
   neverSynced: 'Jeszcze nie zsynchronizowano.',
   connectedTo: (repo, path) => `Połączono z <strong>${repo}</strong>, plik <code>${path}</code>.`,
@@ -308,21 +310,22 @@ const en = {
 
   // settings
   language: 'Language',
-  langAuto: 'Browser default',
-  adding: 'Adding recipes',
+  langAuto: 'Auto',
   android:
     'Install the app: in Chrome, menu ⋮ → “Install app” (or “Add to Home screen”). Then, in any app, choose “Share” → <strong>Przepisy</strong>.',
-  ios: 'iPhone and iPad',
   iosIntro: 'Safari does not let web apps receive shares. You can make a shortcut in the Shortcuts app:',
   iosStep1: 'New shortcut → in the shortcut details turn on “Show in Share Sheet”, type: URLs.',
   iosStep2: (code) => `Add a “Text” action containing ${code} followed directly by the “Shortcut Input” variable.`,
   iosStep3: 'Add an “Open URLs” action.',
   iosNote:
     'The shortcut opens Przepisy in Safari. On an iPhone, Safari and the app added to the Home Screen keep separate data; connect both to GitHub and they will be the same.',
-  computer: 'Computer',
   bookmarklet: (button) =>
     `Drag this button to the bookmarks bar: ${button}. Clicked on a recipe page, it saves the page here. You can also paste a link into the search field.`,
   dragBookmarklet: 'Drag this button to the bookmarks bar.',
+  help: 'Help',
+  helpAndroid: 'Adding on Android',
+  helpIos: 'Adding on iPhone and iPad',
+  helpComputer: 'Adding on a computer',
   whereFrom: 'Where the recipe comes from',
   whereFromBody:
     'The browser cannot fetch other sites’ pages, so a GitHub Action in the data repository does it after each sync. Most recipe sites have the recipe data in their code (schema.org); then the servings, ingredients and steps are as on the page. Other pages are read by a language model: Claude if the repository has the secret <code>ANTHROPIC_API_KEY</code>, otherwise Mistral if it has the secret <code>MISTRAL_API_KEY</code>.',
@@ -332,7 +335,6 @@ const en = {
   renameTag: (tag) => `New name for the tag #${tag}:`,
   removeTag: (tag) => `Remove the tag #${tag} from all recipes?`,
   backup: 'Backup',
-  backupBody: (n) => `Recipes: ${n}. The backup is a JSON file; loading one adds its recipes to the ones here.`,
   download: 'Download backup',
   load: 'Load backup',
   imported: (n) => `Loaded. New recipes: ${n}.`,
@@ -341,6 +343,8 @@ const en = {
 
   // sync settings
   syncHead: 'Sync with GitHub',
+  syncShort: 'The same recipes on all your devices, and recipes fetched from pages.',
+  syncHow: 'How to connect',
   lastSync: (ago) => `Last synced: ${ago}.`,
   neverSynced: 'Not synced yet.',
   connectedTo: (repo, path) => `Connected to <strong>${repo}</strong>, file <code>${path}</code>.`,

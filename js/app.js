@@ -278,7 +278,9 @@ function render() {
   if (ui.view === 'recipe' && !itemById(ui.recipeId)) ui.view = 'list';
   const recipe = ui.view === 'recipe' ? itemById(ui.recipeId) : null;
   document.title = ui.view === 'settings' ? `${t('settings')} — Przepisy` : recipe ? `${titleOf(recipe)} — Przepisy` : 'Przepisy';
+  const open = [...app.querySelectorAll('details[open][id]')].map((d) => d.id);
   app.innerHTML = ui.view === 'settings' ? settingsView() : recipe ? recipeView(recipe) : listView();
+  for (const id of open) document.getElementById(id)?.setAttribute('open', '');
   renderSheet();
   renderToast();
   restoreFocus(focus);
@@ -694,8 +696,8 @@ function closeSheet() {
 
 // ---------- settings ----------
 
+// Settings show the controls; explanations wait in collapsed parts.
 function settingsView() {
-  const total = doc.items.length;
   const base = new URL('./', location.href).href;
   const bookmarklet = `javascript:(()=>{window.open('${base}?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title),'przepisy')})()`;
   const tags = S.tagCounts(doc.items);
@@ -706,40 +708,39 @@ function settingsView() {
       <span></span>
     </header>
     ${notices()}
-    ${langSection()}
     ${syncSection()}
-    <section>
-      <h2>${t('adding')}</h2>
-      <h3>Android</h3>
-      <p>${t('android')}</p>
-      <h3>${t('ios')}</h3>
-      <p>${t('iosIntro')}</p>
-      <ol>
-        <li>${t('iosStep1')}</li>
-        <li>${t('iosStep2', `<code>${esc(base)}?url=</code>`)}</li>
-        <li>${t('iosStep3')}</li>
-      </ol>
-      <p class="field-note">${t('iosNote')}</p>
-      <h3>${t('computer')}</h3>
-      <p>${t('bookmarklet', `<a class="btn bookmarklet" href="${esc(bookmarklet)}" data-action="bookmarklet">+ Przepisy</a>`)}</p>
-    </section>
-    <section>
-      <h2>${t('whereFrom')}</h2>
-      <p>${t('whereFromBody')}</p>
-      <p class="field-note">${t('whereFromNote')}</p>
-    </section>
-    ${tags.length ? tagsSection(tags) : ''}
+    ${langSection()}
     <section>
       <h2>${t('backup')}</h2>
-      <p>${t('backupBody', total)}</p>
       <div class="row">
         <button class="btn" type="button" data-action="export">${t('download')}</button>
         <label class="btn file-btn">${t('load')}<input type="file" accept="application/json,.json" data-action="import" hidden></label>
       </div>
       ${ui.importMsg ? `<p class="field-note" role="status">${esc(ui.importMsg)}</p>` : ''}
     </section>
+    ${tags.length ? tagsSection(tags) : ''}
+    <section>
+      <h2>${t('help')}</h2>
+      ${more('help-android', t('helpAndroid'), `<p>${t('android')}</p>`)}
+      ${more(
+        'help-ios',
+        t('helpIos'),
+        `<p>${t('iosIntro')}</p>
+        <ol>
+          <li>${t('iosStep1')}</li>
+          <li>${t('iosStep2', `<code>${esc(base)}?url=</code>`)}</li>
+          <li>${t('iosStep3')}</li>
+        </ol>
+        <p class="field-note">${t('iosNote')}</p>`,
+      )}
+      ${more('help-computer', t('helpComputer'), `<p>${t('bookmarklet', `<a class="btn bookmarklet" href="${esc(bookmarklet)}" data-action="bookmarklet">+ Przepisy</a>`)}</p>`)}
+      ${more('help-source', t('whereFrom'), `<p>${t('whereFromBody')}</p><p class="field-note">${t('whereFromNote')}</p>`)}
+    </section>
     <p class="version">${t('version', VERSION, code)}</p>`;
 }
+
+// A collapsed part; the id keeps it open across renders.
+const more = (id, summary, body) => `<details id="${id}"><summary>${summary}</summary>${body}</details>`;
 
 // The language names stay in their own language, and the heading is in
 // both, so the switch is easy to find in a language one cannot read.
@@ -785,7 +786,7 @@ function syncSection() {
         <button class="btn" type="button" data-action="sync-now"${sync.busy ? ' disabled' : ''}>${t('syncNow')}</button>
         <button class="btn${ui.confirmDisconnect ? ' danger' : ''}" type="button" data-action="sync-off">${ui.confirmDisconnect ? t('confirmDisconnect') : t('disconnect')}</button>
       </div>
-      <p class="field-note">${t('disconnectNote')}</p>
+      ${ui.confirmDisconnect ? `<p class="field-note">${t('disconnectNote')}</p>` : ''}
     </section>`;
   }
   const from = ui.syncToken && !ui.syncError && SYNC_FROM[ui.syncFrom] ? `<p class="field-note">${t('filledFrom', SYNC_FROM[ui.syncFrom])}</p>` : '';
@@ -793,12 +794,17 @@ function syncSection() {
   const newToken =
     '<a href="https://github.com/settings/personal-access-tokens/new?name=Przepisy&amp;description=Przepisy+sync&amp;expires_in=366&amp;contents=write" target="_blank" rel="noopener">github.com/settings/personal-access-tokens</a>';
   return `<section>${head}
-    <p class="field-note">${t('syncIntro')}</p>
-    <ol>
-      <li>${t('syncStep1', newRepo)}</li>
-      <li>${t('syncStep2', newToken)}</li>
-      <li>${t('syncStep3')}</li>
-    </ol>
+    <p class="field-note">${t('syncShort')}</p>
+    ${more(
+      'sync-how',
+      t('syncHow'),
+      `<p>${t('syncIntro')}</p>
+      <ol>
+        <li>${t('syncStep1', newRepo)}</li>
+        <li>${t('syncStep2', newToken)}</li>
+        <li>${t('syncStep3')}</li>
+      </ol>`,
+    )}
     ${from}
     <form id="sync-form" class="edit" novalidate>
       <label for="sync-repo">${t('repo')}</label>
