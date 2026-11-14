@@ -9,6 +9,7 @@ Aplikacja webowa (PWA) do zbierania przepisów z sieci. Statyczne pliki w katalo
 - Przepis ze strony (`meta`, z `meta.recipe`) dopisuje skrypt `.github/scripts/przepisy_recipes.py` w gchrupala/app-data. Nie zmienia `updatedAt`; `meta` łączy się według `meta.fetchedAt`. Zmiana formatu `meta` wymaga zmian po obu stronach (`parseMeta`).
 - Przepis bez strony ma `url: ''` i tylko pole `recipe`; akcja go pomija (`needs_work`).
 - Poprawka ręczna to pole `recipe` przepisu; łączy się według `updatedAt` i ma pierwszeństwo przed `meta.recipe`.
+- Tytuł: `title` to tytuł wpisany ręcznie, `sharedTitle` to tytuł, który przyszedł z udostępnionym adresem (zwykle tytuł strony). Wyświetlany jest `title`, potem `meta.title`, potem `sharedTitle` (`titleOf`).
 
 ## Zasady
 

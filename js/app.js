@@ -581,7 +581,7 @@ function itemForm(item) {
     ${item.url ? `<a class="sheet-link" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(S.prettyUrl(item.url))}</a>` : ''}
     ${ui.editIntro && item.url && !item.meta ? `<p class="field-note">${syncConfig ? 'Porcje, składniki i kroki pojawią się po synchronizacji, gdy GitHub pobierze stronę.' : 'Bez połączenia z GitHubem przepis trzeba wpisać samemu.'}</p>` : ''}
     <label for="f-title">Tytuł</label>
-    <input id="f-title" name="title" type="text" value="${esc(item.title)}" placeholder="${esc(item.meta?.title || (item.url ? S.prettyUrl(item.url) : ''))}">
+    <input id="f-title" name="title" type="text" value="${esc(item.title)}" placeholder="${esc(item.meta?.title || item.sharedTitle || (item.url ? S.prettyUrl(item.url) : ''))}">
     ${page}
     <label for="f-tags">Tagi <span class="hint">(oddzielone przecinkami)</span></label>
     <input id="f-tags" name="tags" type="text" value="${esc(item.tags.join(', '))}" autocapitalize="off" spellcheck="false">

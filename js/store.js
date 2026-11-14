@@ -6,7 +6,8 @@
 //   { przepisy: 1, items: [Item], tombstones: { id: deletedAt } }
 // Item:
 //   id, url ('' for a recipe typed in by hand without a page), title (typed
-//   or shared, may be ''), note, tags [string],
+//   in by hand, may be ''), sharedTitle (the title that came with a shared
+//   address, usually the title of the page, may be ''), note, tags [string],
 //   status ('todo' | 'done' = tried), addedAt, updatedAt, doneAt (ms or null),
 //   recipe (optional): the recipe as corrected by hand; shown instead of
 //     meta.recipe,
@@ -231,7 +232,10 @@ export function editRecipe(doc, id, form, now) {
 
 // ---------- titles for display ----------
 
-export const titleOf = (item) => item.title || item.meta?.title || (item.url ? prettyUrl(item.url) : 'Bez tytułu');
+// A title typed in by hand, else the name of the recipe from the page, else
+// the title that came with the shared address.
+export const titleOf = (item) =>
+  item.title || item.meta?.title || item.sharedTitle || (item.url ? prettyUrl(item.url) : 'Bez tytułu');
 export const siteOf = (item) => item.meta?.site || domainOf(item.url);
 
 export function prettyUrl(url) {
@@ -264,7 +268,7 @@ export function addItem(doc, { url, title = '', note = '', tags = [] }, now, ran
   const existing = findByUrl(doc, clean);
   if (existing) {
     const patch = {};
-    if (title && !existing.title) patch.title = String(title).slice(0, 300);
+    if (title && !existing.sharedTitle) patch.sharedTitle = title;
     const more = parseTags(tags);
     if (more.length) patch.tags = parseTags([...existing.tags, ...more]);
     updateItem(doc, existing.id, patch, now);
@@ -273,7 +277,8 @@ export function addItem(doc, { url, title = '', note = '', tags = [] }, now, ran
   const item = {
     id: newId(now, random),
     url: clean,
-    title: String(title ?? '').trim().slice(0, 300),
+    title: '',
+    sharedTitle: String(title ?? '').trim().slice(0, 300),
     note: String(note ?? '').slice(0, MAX_TEXT),
     tags: parseTags(tags),
     status: 'todo',
@@ -291,6 +296,7 @@ export function addManual(doc, { title = '', note = '', tags = [], recipe = null
     id: newId(now, random),
     url: '',
     title: String(title ?? '').trim().slice(0, 300),
+    sharedTitle: '',
     note: String(note ?? '').slice(0, MAX_TEXT),
     tags: parseTags(tags),
     status: 'todo',
@@ -317,6 +323,7 @@ export function updateItem(doc, id, patch, now) {
   if (!item) return null;
   const next = { ...item };
   if ('title' in patch) next.title = String(patch.title ?? '').trim().slice(0, 300);
+  if ('sharedTitle' in patch) next.sharedTitle = String(patch.sharedTitle ?? '').trim().slice(0, 300);
   if ('note' in patch) next.note = String(patch.note ?? '').slice(0, MAX_TEXT);
   if ('tags' in patch) next.tags = parseTags(patch.tags);
   // An empty address makes it a recipe without a page; a wrong one is ignored.
@@ -396,7 +403,7 @@ function haystack(item) {
   const r = recipeOf(item);
   const lines = (sections) => (sections ?? []).flatMap((s) => [s.name, ...s.items]);
   return fold(
-    [item.title, item.url, domainOf(item.url), item.note, item.tags.join(' '), m.title, m.description, m.site, m.author, r?.yields, ...lines(r?.ingredients)]
+    [item.title, item.sharedTitle, item.url, domainOf(item.url), item.note, item.tags.join(' '), m.title, m.description, m.site, m.author, r?.yields, ...lines(r?.ingredients)]
       .filter(Boolean)
       .join(' \n '),
   );
@@ -445,15 +452,35 @@ function parseMeta(m) {
   return out;
 }
 
+// Whether a title names the site, as titles of pages do
+// ("Kapusta z grzybami | AniaGotuje.pl").
+function namesSite(title, url, site) {
+  const compact = (s) => fold(s).replace(/[^\p{L}\p{N}]+/gu, '');
+  const host = domainOf(url).split('.');
+  const names = [site, host.length > 1 ? host.at(-2) : ''].map(compact).filter((n) => n.length >= 4);
+  const t = compact(title);
+  return names.some((n) => t.includes(n));
+}
+
 function parseItem(x) {
   if (!isObj(x) || typeof x.id !== 'string' || !x.id) return null;
   const url = x.url === '' ? '' : cleanUrl(x.url);
   if (url === null) return null;
   const addedAt = num(x.addedAt) ?? num(x.updatedAt) ?? 0;
+  const meta = parseMeta(x.meta);
+  let title = typeof x.title === 'string' ? x.title.slice(0, 300) : '';
+  let sharedTitle = typeof x.sharedTitle === 'string' ? x.sharedTitle.slice(0, 300) : '';
+  // Items saved before sharedTitle existed kept the shared title in title.
+  // A title that names the site is the title of the page, so it moves.
+  if (!('sharedTitle' in x) && url && title && namesSite(title, url, meta?.site)) {
+    sharedTitle = title;
+    title = '';
+  }
   const item = {
     id: x.id,
     url,
-    title: typeof x.title === 'string' ? x.title.slice(0, 300) : '',
+    title,
+    sharedTitle,
     note: typeof x.note === 'string' ? x.note.slice(0, MAX_TEXT) : '',
     tags: parseTags(Array.isArray(x.tags) ? x.tags : []),
     status: STATUSES.includes(x.status) ? x.status : 'todo',
@@ -463,7 +490,6 @@ function parseItem(x) {
   };
   // An empty correction (no lines at all) is kept: it hides the page recipe.
   if (isObj(x.recipe)) item.recipe = parseRecipe(x.recipe) ?? { ingredients: [], steps: [] };
-  const meta = parseMeta(x.meta);
   if (meta) item.meta = meta;
   return item;
 }
@@ -543,6 +569,7 @@ function dedupe(items, tombstones) {
       ...newer,
       id: first.id,
       addedAt: first.addedAt,
+      sharedTitle: newer.sharedTitle || (newer === first ? item : first).sharedTitle,
       tags: parseTags([...first.tags, ...item.tags]),
       note: [first.note, item.note].filter(Boolean).filter((n, i, all) => all.indexOf(n) === i).join('\n\n').slice(0, MAX_TEXT),
       updatedAt: Math.max(first.updatedAt, item.updatedAt),

@@ -91,9 +91,40 @@ test('adding a recipe twice keeps one', () => {
   assert.equal(again.existed, true);
   assert.equal(doc.items.length, 1);
   assert.equal(doc.items[0].status, 'done');
-  assert.equal(doc.items[0].title, 'A');
+  assert.equal(doc.items[0].title, '');
+  assert.equal(doc.items[0].sharedTitle, 'A');
   assert.deepEqual(doc.items[0].tags, ['obiad', 'zupy']);
   assert.equal(S.addItem(doc, { url: 'nie link' }, min(3), rnd), null);
+});
+
+test('the title: typed in by hand, else the recipe name from the page, else the shared one', () => {
+  const doc = S.emptyDoc();
+  const { item } = S.addItem(doc, { url: 'https://example.com/a', title: 'Makaron | Food | Example' }, min(0), rnd);
+  assert.equal(S.titleOf(item), 'Makaron | Food | Example');
+  item.meta = { fetchedAt: min(1), title: 'Makaron z fasolą' };
+  assert.equal(S.titleOf(item), 'Makaron z fasolą');
+  S.updateItem(doc, item.id, { title: 'Mac and cheese' }, min(2));
+  assert.equal(S.titleOf(item), 'Mac and cheese');
+  assert.equal(S.filterItems(doc.items, { query: 'food' }).length, 1);
+});
+
+test('old data: a title that names the site counts as the shared one', () => {
+  const old = (id, url, title, site) => ({
+    id, url, title, note: '', tags: [], status: 'todo', addedAt: 1, updatedAt: 1, doneAt: null,
+    meta: { fetchedAt: 2, title: 'Z przepisu', site },
+  });
+  const doc = S.parseDoc({
+    items: [
+      old('a', 'https://www.theguardian.com/food/x', 'How to bake – recipe | Food | The Guardian', 'the Guardian'),
+      old('b', 'https://aniagotuje.pl/przepis/k', 'Kapusta z grzybami | AniaGotuje.pl'),
+      old('c', 'https://www.youtube.com/watch?v=x', 'Rodaballo al horno', ''),
+    ],
+  });
+  assert.deepEqual(doc.items.map(S.titleOf), ['Z przepisu', 'Z przepisu', 'Rodaballo al horno']);
+  assert.equal(doc.items[0].sharedTitle, 'How to bake – recipe | Food | The Guardian');
+  // Once saved with sharedTitle, a typed title stays, even one naming the site.
+  const typed = { ...doc.items[2], title: 'Rodaballo z YouTube' };
+  assert.equal(S.parseDoc({ items: [typed] }).items[0].title, 'Rodaballo z YouTube');
 });
 
 test('updates stamp updatedAt only when something changed; a new address drops the page data', () => {
