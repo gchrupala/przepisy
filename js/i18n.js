@@ -142,6 +142,10 @@ const pl = {
   // settings
   language: 'Język',
   langAuto: 'Auto',
+  textSize: 'Wielkość tekstu',
+  textNormal: 'Zwykła',
+  textLarge: 'Duża',
+  textLarger: 'Bardzo duża',
   android:
     'Zainstaluj aplikację: w Chrome menu ⋮ → „Zainstaluj aplikację” (albo „Dodaj do ekranu głównego”). Potem w dowolnej aplikacji wybierz „Udostępnij” → <strong>Przepisy</strong>.',
   iosIntro: 'Safari nie pozwala aplikacjom z sieci odbierać udostępnień. Można zrobić skrót w aplikacji Skróty:',
@@ -333,6 +337,10 @@ const en = {
   // settings
   language: 'Language',
   langAuto: 'Auto',
+  textSize: 'Text size',
+  textNormal: 'Normal',
+  textLarge: 'Large',
+  textLarger: 'Very large',
   android:
     'Install the app: in Chrome, menu ⋮ → “Install app” (or “Add to Home screen”). Then, in any app, choose “Share” → <strong>Przepisy</strong>.',
   iosIntro: 'Safari does not let web apps receive shares. You can make a shortcut in the Shortcuts app:',

@@ -6,6 +6,7 @@ Aplikacja webowa (PWA) do zbierania przepisów z sieci. Statyczne pliki w katalo
 - `js/sync.js`: synchronizacja z `<osoba>/przepisy.json` w prywatnym repozytorium. `parsePerson` musi dawać ten sam folder co w Myo, MaxApkach i Doczytaniach.
 - `js/app.js`: widoki i zdarzenia.
 - `js/i18n.js`: teksty interfejsu po polsku i angielsku (`t(klucz, …)`). Nowy tekst dopisz do obu słowników; test sprawdza, że mają te same klucze. Język wybiera się przełącznikiem PL | EN na liście albo w ustawieniach (`prefs.lang`: `auto`, `pl`, `en`); `auto` bierze język przeglądarki.
+- Wielkość tekstu (`prefs.text`: `normal`, `large`, `larger`) to `data-text` na `<html>`, które zmienia bazowy rozmiar czcionki (125%, 150%). Rozmiary tekstu w `styles.css` podawaj w `rem` albo `em`, nie w `px`, żeby rosły razem z nim.
 - `sw.js`: nowe pliki dopisz do `APP_FILES`; przy każdej zmianie plików aplikacji podbij `VERSION`. Usuwa tylko własne stare cache (prefiks `przepisy-app-`), bo inne aplikacje na gchrupala.github.io dzielą cache.
 - Przepis ze strony (`meta`, z `meta.recipe`) dopisuje skrypt `.github/scripts/przepisy_recipes.py` w gchrupala/app-data. Nie zmienia `updatedAt`; `meta` łączy się według `meta.fetchedAt`. Zmiana formatu `meta` wymaga zmian po obu stronach (`parseMeta`).
 - Przepis bez strony ma `url: ''` i tylko pole `recipe`; akcja go pomija (`needs_work`).

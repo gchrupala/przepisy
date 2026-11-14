@@ -33,7 +33,7 @@ let doc = S.loadDoc(storage);
 let saveFailed = !storage;
 
 const PREFS_KEY = 'przepisy:prefs';
-const prefs = { status: 'all', tag: '', sort: 'added', lang: 'auto', ...readJson(PREFS_KEY) };
+const prefs = { status: 'all', tag: '', sort: 'added', lang: 'auto', text: 'normal', ...readJson(PREFS_KEY) };
 
 // The interface language: chosen in settings ('pl' | 'en') or, with
 // 'auto', the browser's.
@@ -42,6 +42,14 @@ function applyLang() {
   document.documentElement.lang = getLang();
 }
 applyLang();
+
+// The size of the text: 'normal' | 'large' | 'larger' (styles.css scales
+// the root font size, and with it everything sized in rem).
+const TEXT_SIZES = ['normal', 'large', 'larger'];
+function applyTextSize() {
+  document.documentElement.dataset.text = TEXT_SIZES.includes(prefs.text) ? prefs.text : 'normal';
+}
+applyTextSize();
 
 // When each recipe was last opened on this device: { id: ms }. Kept apart
 // from the data, so opening a recipe does not start a sync.
@@ -762,6 +770,7 @@ function settingsView() {
     ${notices()}
     ${syncSection()}
     ${langSection()}
+    ${textSizeSection()}
     <section>
       <h2>${t('backup')}</h2>
       <div class="row">
@@ -805,6 +814,17 @@ function langSection() {
   return `<section>
     <h2>${t('language')} · ${STRINGS[other].language}</h2>
     <div class="row">${option('auto', t('langAuto'))}${LANGS.map((l) => option(l, LANG_NAMES[l])).join('')}</div>
+  </section>`;
+}
+
+function textSizeSection() {
+  const current = document.documentElement.dataset.text;
+  const labels = { normal: t('textNormal'), large: t('textLarge'), larger: t('textLarger') };
+  const option = (value) =>
+    `<button class="btn${current === value ? ' on' : ''}" type="button" data-action="text-size" data-value="${value}" aria-pressed="${current === value}">${labels[value]}</button>`;
+  return `<section>
+    <h2>${t('textSize')}</h2>
+    <div class="row">${TEXT_SIZES.map(option).join('')}</div>
   </section>`;
 }
 
@@ -1162,6 +1182,12 @@ function onClick(e) {
       savePrefs();
       applyLang();
       ui.importMsg = '';
+      render();
+      break;
+    case 'text-size':
+      prefs.text = value;
+      savePrefs();
+      applyTextSize();
       render();
       break;
     case 'edit-recipe':

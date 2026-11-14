@@ -40,11 +40,20 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Large text (settings): everything sized in rem grows with it. */
+html[data-text='large'] {
+  font-size: 125%;
+}
+
+html[data-text='larger'] {
+  font-size: 150%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.45 var(--sans);
+  font: 1rem/1.45 var(--sans);
 }
 
 main {
@@ -590,9 +599,9 @@ span.tag {
 
 .tick input {
   flex: none;
-  width: 20px;
-  height: 20px;
-  margin: 2px 0 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.125rem 0 0;
   accent-color: var(--accent);
 }
 
@@ -615,8 +624,8 @@ span.tag {
   display: grid;
   flex: none;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent);
