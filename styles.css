@@ -94,7 +94,54 @@ code {
 
 .bar-actions {
   display: flex;
+  align-items: center;
   gap: 4px;
+}
+
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 2px;
+  color: var(--line);
+  font-size: 0.85rem;
+}
+
+.lang-toggle button {
+  min-width: 32px;
+  height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.lang-toggle button:hover {
+  color: var(--text);
+}
+
+.lang-toggle button[aria-pressed='true'] {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* The smallest phones: the title, PL | EN and three icons in one row. */
+@media (max-width: 359px) {
+  .bar-actions {
+    gap: 0;
+  }
+
+  .bar-actions .icon-btn {
+    width: 38px;
+  }
+
+  .lang-toggle button {
+    min-width: 28px;
+    padding: 0 2px;
+  }
 }
 
 /* ---------- buttons ---------- */
@@ -132,6 +179,11 @@ textarea {
 .icon-btn.small svg {
   width: 18px;
   height: 18px;
+}
+
+.icon-btn.wake-on {
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 .sync-ok {
@@ -312,6 +364,24 @@ textarea {
 
 /* ---------- list ---------- */
 
+.sort {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.sort select {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.88rem;
+}
+
 .items {
   margin: 8px 0 0;
   padding: 0;
@@ -462,6 +532,35 @@ span.tag {
 
 .part {
   margin: 14px 0 0;
+}
+
+.part-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.scaler {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 8px 0;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scaler .icon-btn {
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.scaler span {
+  min-width: 6.5em;
+  text-align: center;
 }
 
 .part h3 {
@@ -727,6 +826,58 @@ section ol {
 
 section .edit {
   padding: 0;
+}
+
+/* Explanations, collapsed until asked for. */
+section details {
+  border-top: 1px solid var(--line);
+}
+
+section > h2 + details {
+  border-top: 0;
+}
+
+section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  list-style: none;
+  cursor: pointer;
+}
+
+section summary::-webkit-details-marker {
+  display: none;
+}
+
+section summary::after {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: -4px 6px 0 0;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  rotate: 45deg;
+  transition: rotate 0.15s;
+  content: '';
+}
+
+section details[open] > summary::after {
+  margin-top: 4px;
+  rotate: 225deg;
+}
+
+section details > :last-child {
+  margin-bottom: 14px;
+}
+
+section details p:first-of-type {
+  margin-top: 2px;
+}
+
+.field-note + details {
+  margin-top: 8px;
 }
 
 .row {

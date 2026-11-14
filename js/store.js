@@ -166,19 +166,227 @@ export function servingsOf(yields) {
   return min > 0 && max >= min ? { min, max } : null;
 }
 
-// "Dla 4 osób", "Dla 1 osoby", "Dla 4–6 osób", "Ilość: około 60 pierogów", or ''.
-export function yieldsLabel(yields) {
+// The few words that labels and the shared text of a recipe use, in the
+// languages of the interface (js/i18n.js). Anything else falls back to 'pl'.
+const WORDS = {
+  pl: {
+    serves: (n, max) => `Dla ${n} ${max === 1 ? 'osoby' : 'osób'}`,
+    makes: (y) => `Ilość: ${y}`,
+    hours: (h) => `${h} godz.`,
+    untitled: 'Bez tytułu',
+    ingredients: 'Składniki',
+    method: 'Przygotowanie',
+  },
+  en: {
+    serves: (n) => `Serves ${n}`,
+    makes: (y) => `Makes: ${y}`,
+    hours: (h) => `${h} h`,
+    untitled: 'Untitled',
+    ingredients: 'Ingredients',
+    method: 'Method',
+  },
+};
+const words = (lang) => WORDS[lang] ?? WORDS.pl;
+
+// "Dla 4 osób", "Dla 1 osoby", "Dla 4–6 osób", "Ilość: około 60 pierogów", or '';
+// in English "Serves 4", "Makes: about 60 pierogi".
+export function yieldsLabel(yields, lang = 'pl') {
   const n = servingsOf(yields);
-  if (n) return `Dla ${n.min === n.max ? n.min : `${n.min}–${n.max}`} ${n.max === 1 ? 'osoby' : 'osób'}`;
-  return yields ? `Ilość: ${yields}` : '';
+  if (n) return words(lang).serves(n.min === n.max ? n.min : `${n.min}–${n.max}`, n.max);
+  return yields ? words(lang).makes(yields) : '';
 }
 
-// 45 -> "45 min", 90 -> "1 godz. 30 min", 180 -> "3 godz."
-export function timeLabel(minutes) {
+// Some sites write Markdown in their recipe data. A line -> spans to show:
+// "**bold**" becomes { text, strong: true }, "[text](address)" just its text.
+export function textSpans(line) {
+  const s = String(line ?? '').replace(/\[([^\]]+)\]\((?:https?:\/\/|\/)[^)\s]*\)/g, '$1');
+  const out = [];
+  let last = 0;
+  for (const m of s.matchAll(/\*\*(?=\S)(.+?)\*\*/g)) {
+    if (m.index > last) out.push({ text: s.slice(last, m.index), strong: false });
+    out.push({ text: m[1], strong: true });
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) out.push({ text: s.slice(last), strong: false });
+  return out;
+}
+
+// ---------- scaling ingredients ----------
+
+const GLYPHS = { '½': 1 / 2, '⅓': 1 / 3, '⅔': 2 / 3, '¼': 1 / 4, '¾': 3 / 4, '⅛': 1 / 8, '⅜': 3 / 8, '⅝': 5 / 8, '⅞': 7 / 8 };
+const NICE = [
+  [0, ''],
+  [1 / 8, '⅛'],
+  [1 / 4, '¼'],
+  [1 / 3, '⅓'],
+  [3 / 8, '⅜'],
+  [1 / 2, '½'],
+  [5 / 8, '⅝'],
+  [2 / 3, '⅔'],
+  [3 / 4, '¾'],
+  [7 / 8, '⅞'],
+  [1, ''],
+];
+
+// An amount in a line: "1 1/2", "1½", "½", "3/4", "1,5", "250", "pół",
+// "półtora". Not a match inside words or codes ("E120").
+const AMOUNT =
+  /(?<![\p{L}\d.,/])(?:(\d+)\s+(\d+)\/(\d+)|(\d+)?\s?([½⅓⅔¼¾⅛⅜⅝⅞])|(\d+)\/(\d+)|(\d+(?:[.,]\d+)?)|(półtora|pół)(?!\p{L}))/gu;
+// Numbers that are not amounts: sizes, temperatures, times, flour types.
+const NOT_AMOUNT_AFTER = /^\s*(?:cm\b|mm\b|°|%|stopni|st\.|minut|min\b|godz|h\b|sek|s\b|[x×]\s*[\d½⅓⅔¼¾⅛⅜⅝⅞]|cali|inch|in\b|degrees|minutes?|hours?|grad|gradi|minuti|minutos|horas?|ore\b)/iu;
+const NOT_AMOUNT_BEFORE = /(?:\btyp|\btype|\bnr|#|\bx|×)\s*$/iu;
+
+function amountValue(m) {
+  if (m[1]) return Number(m[1]) + Number(m[2]) / Number(m[3]);
+  if (m[5]) return (m[4] ? Number(m[4]) : 0) + GLYPHS[m[5]];
+  if (m[6]) return Number(m[6]) / Number(m[7]);
+  if (m[8]) return Number(m[8].replace(',', '.'));
+  return m[9] === 'pół' ? 0.5 : 1.5;
+}
+
+// 0.5 -> "½", 1.5 -> "1½", 2.4 -> "2,4", 333 -> "335": fractions a cook
+// can measure, fewer digits for bigger amounts.
+export function formatAmount(x, decimal = ',', fractions = true) {
+  if (x >= 100) return String(Math.round(x / 5) * 5);
+  if (x >= 10) return String(Math.round(x));
+  const whole = Math.floor(x);
+  for (const [f, glyph] of fractions ? NICE : []) {
+    if (Math.abs(x - whole - f) < 0.02) {
+      const w = whole + (f === 1 ? 1 : 0);
+      return glyph ? `${w || ''}${glyph}` : String(w);
+    }
+  }
+  return String(Math.round(x * 10) / 10).replace('.', decimal);
+}
+
+// Measures written as words. Polish ones have four forms: 1, 2–4, 5 and
+// more, a fraction ("1½ szklanki", "½ ząbka"); the others have two: up to 1,
+// more than 1.
+const UNITS_PL = [
+  ['szklanka', 'szklanki', 'szklanek', 'szklanki'],
+  ['łyżka', 'łyżki', 'łyżek', 'łyżki'],
+  ['łyżeczka', 'łyżeczki', 'łyżeczek', 'łyżeczki'],
+  ['filiżanka', 'filiżanki', 'filiżanek', 'filiżanki'],
+  ['garść', 'garście', 'garści', 'garści'],
+  ['szczypta', 'szczypty', 'szczypt', 'szczypty'],
+  ['puszka', 'puszki', 'puszek', 'puszki'],
+  ['kostka', 'kostki', 'kostek', 'kostki'],
+  ['opakowanie', 'opakowania', 'opakowań', 'opakowania'],
+  ['słoik', 'słoiki', 'słoików', 'słoika'],
+  ['ząbek', 'ząbki', 'ząbków', 'ząbka'],
+  ['główka', 'główki', 'główek', 'główki'],
+  ['pęczek', 'pęczki', 'pęczków', 'pęczka'],
+  ['plaster', 'plastry', 'plastrów', 'plastra'],
+  ['plasterek', 'plasterki', 'plasterków', 'plasterka'],
+  ['jajko', 'jajka', 'jajek', 'jajka'],
+  ['żółtko', 'żółtka', 'żółtek', 'żółtka'],
+  ['białko', 'białka', 'białek', 'białka'],
+];
+const UNITS_OTHER = [
+  ['cup', 'cups'],
+  ['tablespoon', 'tablespoons'],
+  ['teaspoon', 'teaspoons'],
+  ['pinch', 'pinches'],
+  ['handful', 'handfuls'],
+  ['clove', 'cloves'],
+  ['can', 'cans'],
+  ['stick', 'sticks'],
+  ['slice', 'slices'],
+  ['egg', 'eggs'],
+  ['taza', 'tazas'],
+  ['cucharada', 'cucharadas'],
+  ['cucharadita', 'cucharaditas'],
+  ['vaso', 'vasos'],
+  ['pizca', 'pizcas'],
+  ['diente', 'dientes'],
+  ['huevo', 'huevos'],
+  ['tazza', 'tazze'],
+  ['cucchiaio', 'cucchiai'],
+  ['cucchiaino', 'cucchiaini'],
+  ['bicchiere', 'bicchieri'],
+  ['pizzico', 'pizzichi'],
+  ['spicchio', 'spicchi'],
+  ['uovo', 'uova'],
+];
+const UNIT_BY_FORM = new Map();
+for (const forms of UNITS_PL) for (const f of forms) if (!UNIT_BY_FORM.has(f)) UNIT_BY_FORM.set(f, { pl: true, forms });
+for (const forms of UNITS_OTHER) for (const f of forms) UNIT_BY_FORM.set(f, { pl: false, forms });
+const WORD = /^(\s*)(\p{L}+)(?![\p{L}(])/u;
+// "szklanka mąki", "a cup of flour", "una taza de arroz": one measure
+// without a number, at the start of the line.
+const IMPLICIT = /^(\s*(?:[-–•*·]\s*)?)(?:(?:a|an|one|un|una|uno)\s+)?(\p{L}+)(?!\p{L})/iu;
+
+function unitForm(unit, value) {
+  const [one, few, many, part] = unit.forms;
+  if (!unit.pl) return value <= 1 ? one : few;
+  if (!Number.isInteger(value)) return part;
+  if (value === 1) return one;
+  const n10 = value % 10;
+  const n100 = value % 100;
+  return n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14) ? few : many;
+}
+
+const sameCase = (word, like) => (like[0] === like[0].toUpperCase() && like[0] !== like[0].toLowerCase() ? word[0].toUpperCase() + word.slice(1) : word);
+
+// The value an amount is shown as, after formatAmount (so the form of the
+// word that follows agrees with what is shown).
+function shownValue(text) {
+  const m = [...text.matchAll(AMOUNT)][0];
+  return m ? amountValue(m) : NaN;
+}
+
+// An ingredient line with its amounts multiplied by factor. Sizes,
+// temperatures and times stay. A measure written as a word ("szklanka",
+// "cup") counts as one and takes the right form ("2 szklanki"); other
+// words keep their ending ("1 cebula" -> "2 cebula").
+export function scaleLine(line, factor, decimal = ',') {
+  const s = String(line ?? '');
+  if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return s;
+  const lead = s.match(IMPLICIT);
+  const leadUnit = lead && UNIT_BY_FORM.get(lead[2].toLowerCase());
+  let out = '';
+  let last = 0;
+  // "Spicchio di aglio 1" (the amount at the end) is not an implicit one.
+  if (leadUnit && leadUnit.forms[0] === lead[2].toLowerCase() && !/[\d½⅓⅔¼¾⅛⅜⅝⅞]\s*$/.test(s)) {
+    const amount = formatAmount(factor, decimal);
+    const form = unitForm(leadUnit, shownValue(amount));
+    out = lead[1] + sameCase(`${amount} ${form}`, lead[0].trim().replace(/^[-–•*·]\s*/, ''));
+    last = lead[0].length;
+  }
+  for (const m of s.matchAll(AMOUNT)) {
+    const at = m.index;
+    if (at < last) continue;
+    const end = at + m[0].length;
+    if (NOT_AMOUNT_BEFORE.test(s.slice(0, at)) || NOT_AMOUNT_AFTER.test(s.slice(end))) continue;
+    const v = amountValue(m);
+    if (!(v > 0)) continue;
+    // An amount written as a decimal ("1,5", "0.5") stays a decimal, with
+    // the same separator.
+    const written = m[8]?.match(/[.,]/)?.[0];
+    const amount = formatAmount(v * factor, written ?? decimal, !written);
+    out += s.slice(last, at) + amount;
+    last = end;
+    // The measure right after the amount agrees with the new number.
+    const next = s.slice(end).match(WORD);
+    const unit = next && UNIT_BY_FORM.get(next[2].toLowerCase());
+    if (unit) {
+      const shown = written ? Number(amount.replace(',', '.')) : shownValue(amount);
+      out += next[1] + sameCase(unitForm(unit, shown), next[2]);
+      last = end + next[0].length;
+    }
+  }
+  return out + s.slice(last);
+}
+
+// The multipliers offered when the number of people is not known.
+export const FACTORS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6];
+
+// 45 -> "45 min", 90 -> "1 godz. 30 min" ("1 h 30 min"), 180 -> "3 godz."
+export function timeLabel(minutes, lang = 'pl') {
   if (!Number.isFinite(minutes) || minutes <= 0) return '';
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
-  return [h ? `${h} godz.` : '', m ? `${m} min` : ''].filter(Boolean).join(' ');
+  return [h ? words(lang).hours(h) : '', m ? `${m} min` : ''].filter(Boolean).join(' ');
 }
 
 // Sections as text to edit: one item per line, "# Name" before a named part.
@@ -232,10 +440,28 @@ export function editRecipe(doc, id, form, now) {
 
 // ---------- titles for display ----------
 
+// Page titles often end with the name of the site ("Kapusta z grzybami |
+// AniaGotuje.pl") or with a separator left over; both go. The name goes
+// only when it matches the address or the site name of the recipe.
+const squash = (s) => fold(s).replace(/[^\p{L}\p{N}]+/gu, '');
+function trimTitle(title, item) {
+  let t = String(title ?? '').replace(/[\s|–—:·•/-]+$/u, '');
+  const m = t.match(/^(.+?)\s+[|–—-]\s+([^|–—]+)$/u);
+  if (m) {
+    const tail = squash(m[2]).replace(/(pl|com|es|it|net|org)$/, '');
+    const where = [squash(domainOf(item.url)), squash(item.meta?.site)];
+    if (tail.length >= 3 && where.some((w) => w && w.includes(tail))) t = m[1];
+  }
+  return t;
+}
+
 // A title typed in by hand, else the name of the recipe from the page, else
 // the title that came with the shared address.
-export const titleOf = (item) =>
-  item.title || item.meta?.title || item.sharedTitle || (item.url ? prettyUrl(item.url) : 'Bez tytułu');
+export const titleOf = (item, lang = 'pl') =>
+  trimTitle(item.title, item) ||
+  trimTitle(item.meta?.title, item) ||
+  trimTitle(item.sharedTitle, item) ||
+  (item.url ? prettyUrl(item.url) : words(lang).untitled);
 export const siteOf = (item) => item.meta?.site || domainOf(item.url);
 
 export function prettyUrl(url) {
@@ -246,6 +472,34 @@ export function prettyUrl(url) {
   } catch {
     return String(url);
   }
+}
+
+// ---------- sharing ----------
+
+// A recipe as plain text, to send to someone: title, servings and time,
+// ingredients, numbered steps and the address of the page. The note and
+// tags are one's own and stay out; Markdown from the page goes.
+export function recipeText(item, lang = 'pl') {
+  const recipe = recipeOf(item);
+  const plain = (s) => textSpans(s).map((p) => p.text).join('');
+  const w = words(lang);
+  const out = [titleOf(item, lang)];
+  const facts = [yieldsLabel(recipe?.yields, lang), timeLabel(recipe?.time, lang)].filter(Boolean).join(' · ');
+  if (facts) out.push(facts);
+  const part = (head, sections, bullet) => {
+    if (!sections?.length) return;
+    let n = 0;
+    const lines = [head];
+    for (const s of sections) {
+      if (s.name) lines.push('', `${plain(s.name)}:`);
+      for (const text of s.items) lines.push(bullet ? `- ${plain(text)}` : `${(n += 1)}. ${plain(text)}`);
+    }
+    out.push('', ...lines);
+  };
+  part(w.ingredients, recipe?.ingredients, true);
+  part(w.method, recipe?.steps, false);
+  if (item.url) out.push('', item.url);
+  return out.join('\n');
 }
 
 // ---------- changes ----------
@@ -413,11 +667,12 @@ function haystack(item) {
 // "pomidory" finds "pomidorów" and "cukinia" finds "cukinie".
 const stem = (w) => (w.length >= 5 ? w.slice(0, -1) : w);
 
-// The recipes that match the filters, newest first (tried ones by the
-// time they were tried). query: words that must all occur, in any field
-// including the ingredients; "#tag" requires the tag. status: 'todo' |
-// 'done' | 'all'.
-export function filterItems(items, { query = '', status = 'all', tag = '' } = {}) {
+// The recipes that match the filters. query: words that must all occur,
+// in any field including the ingredients; "#tag" requires the tag.
+// status: 'todo' | 'done' | 'all'. sort: 'added' (newest first; tried ones
+// by the time they were tried) or 'opened' (by openedAt, { id: ms }, most
+// recent first; recipes never opened after them, newest first).
+export function filterItems(items, { query = '', status = 'all', tag = '', sort = 'added', openedAt = {} } = {}) {
   const words = [];
   const tags = tag ? [tag] : [];
   for (const w of String(query).trim().split(/\s+/).filter(Boolean)) {
@@ -431,7 +686,8 @@ export function filterItems(items, { query = '', status = 'all', tag = '' } = {}
       (!words.length || ((h) => words.every((w) => h.includes(w)))(haystack(i))),
   );
   const when = (i) => (status === 'done' ? (i.doneAt ?? i.addedAt) : i.addedAt);
-  return out.sort((a, b) => when(b) - when(a) || (a.id < b.id ? 1 : -1));
+  const opened = (i) => (sort === 'opened' && Number.isFinite(openedAt[i.id]) ? openedAt[i.id] : -Infinity);
+  return out.sort((a, b) => opened(b) - opened(a) || when(b) - when(a) || (a.id < b.id ? 1 : -1));
 }
 
 // ---------- reading, checking and saving the document ----------
@@ -455,10 +711,9 @@ function parseMeta(m) {
 // Whether a title names the site, as titles of pages do
 // ("Kapusta z grzybami | AniaGotuje.pl").
 function namesSite(title, url, site) {
-  const compact = (s) => fold(s).replace(/[^\p{L}\p{N}]+/gu, '');
   const host = domainOf(url).split('.');
-  const names = [site, host.length > 1 ? host.at(-2) : ''].map(compact).filter((n) => n.length >= 4);
-  const t = compact(title);
+  const names = [site, host.length > 1 ? host.at(-2) : ''].map(squash).filter((n) => n.length >= 4);
+  const t = squash(title);
   return names.some((n) => t.includes(n));
 }
 
