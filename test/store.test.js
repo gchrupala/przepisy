@@ -109,6 +109,9 @@ test('shared text of a recipe: facts, parts, numbered steps and the address; no 
   // Steps are numbered on across parts.
   S.editRecipe(doc, item.id, { yields: '', ingredients: '', steps: '# A\nraz\n# B\ndwa' }, min(2));
   assert.equal(S.recipeText(item), 'Pierogi\n45 min\n\nPrzygotowanie\n\nA:\n1. raz\n\nB:\n2. dwa\n\nhttps://example.com/pierogi');
+  // Markdown from the page goes.
+  S.editRecipe(doc, item.id, { yields: '', ingredients: '**200 g** [mąki](https://example.com/m)', steps: '' }, min(3));
+  assert.match(S.recipeText(item), /\n- 200 g mąki\n/);
   // Without a recipe and a page: only the title.
   assert.equal(S.recipeText(S.addManual(doc, { title: 'Zupa' }, min(3), rnd)), 'Zupa');
 });
@@ -365,4 +368,86 @@ test('a recipe typed in by hand without a page', () => {
 test('parseDoc keeps recipes without a page but not items without an address field', () => {
   const doc = S.parseDoc({ items: [{ id: 'a', url: '' }, { id: 'b' }, { id: 'c', url: null }], tombstones: {} });
   assert.deepEqual(doc.items.map((i) => i.id), ['a']);
+});
+
+test('sorting by the time a recipe was last opened', () => {
+  const doc = S.emptyDoc();
+  const a = S.addItem(doc, { url: 'https://example.com/a', title: 'A' }, min(0), rnd).item;
+  const b = S.addItem(doc, { url: 'https://example.com/b', title: 'B' }, min(1), rnd).item;
+  S.addItem(doc, { url: 'https://example.com/c', title: 'C' }, min(2), rnd);
+  S.addItem(doc, { url: 'https://example.com/d', title: 'D' }, min(3), rnd);
+  const titles = (opts) => S.filterItems(doc.items, opts).map(S.titleOf);
+  const openedAt = { [a.id]: min(10), [b.id]: min(20), gone: min(30) };
+  assert.deepEqual(titles({ openedAt }), ['D', 'C', 'B', 'A']);
+  assert.deepEqual(titles({ sort: 'opened', openedAt }), ['B', 'A', 'D', 'C']);
+  assert.deepEqual(titles({ sort: 'opened' }), ['D', 'C', 'B', 'A']);
+  assert.deepEqual(titles({ sort: 'opened', openedAt, status: 'todo' }), ['B', 'A', 'D', 'C']);
+});
+
+test('Markdown in recipe lines: bold kept as bold, links as their text', () => {
+  assert.deepEqual(S.textSpans('Por eso **pelar éstos**. Así.'), [
+    { text: 'Por eso ', strong: false },
+    { text: 'pelar éstos', strong: true },
+    { text: '. Así.', strong: false },
+  ]);
+  assert.deepEqual(S.textSpans('Ver [Receta de ceviche](https://example.com/c) aquí'), [{ text: 'Ver Receta de ceviche aquí', strong: false }]);
+  assert.deepEqual(S.textSpans('2 * 3 jajka, 5 ** 2'), [{ text: '2 * 3 jajka, 5 ** 2', strong: false }]);
+  assert.deepEqual(S.textSpans(''), []);
+});
+
+test('scaling ingredient amounts', () => {
+  assert.equal(S.scaleLine('500 g mąki pszennej np. typ 500', 2), '1000 g mąki pszennej np. typ 500');
+  assert.equal(S.scaleLine('2 łyżki oleju - 50 ml', 1.5), '3 łyżki oleju - 75 ml');
+  assert.equal(S.scaleLine('pół łyżeczki soli', 2), '1 łyżeczka soli');
+  assert.equal(S.scaleLine('1,5 kg jabłek', 2), '3 kg jabłek');
+  assert.equal(S.scaleLine('1,5 kg jabłek', 0.5), '0,8 kg jabłek');
+  assert.equal(S.scaleLine('sok z ½ – 1 cytryny', 2), 'sok z 1 – 2 cytryny');
+  assert.equal(S.scaleLine('1 1/2 cups flour', 2), '3 cups flour');
+  assert.equal(S.scaleLine('3/4 cup milk', 2), '1½ cups milk');
+  assert.equal(S.scaleLine('0.5 l water', 3), '1.5 l water');
+  assert.equal(S.scaleLine('3 jajka', 0.5), '1½ jajka');
+  assert.equal(S.scaleLine('tortownica 24 cm, piekarnik 180°C, 20 minut', 2), 'tortownica 24 cm, piekarnik 180°C, 20 minut');
+  assert.equal(S.scaleLine('blaszka 21 x 27 cm', 2), 'blaszka 21 x 27 cm');
+  assert.equal(S.scaleLine('barwnik E120', 2), 'barwnik E120');
+  assert.equal(S.scaleLine('sól do smaku', 2), 'sól do smaku');
+  assert.equal(S.scaleLine('200 g masła', 1), '200 g masła');
+  assert.equal(S.scaleLine('100 g sera', 1 / 3), '33 g sera');
+  assert.equal(S.scaleLine('300 g sera', 1.5), '450 g sera');
+  assert.equal(S.scaleLine('¾ to 1 cup onion, cubed to ¾ x ¾ inch', 1.5), '1⅛ to 1½ cups onion, cubed to ¾ x ¾ inch');
+  assert.equal(S.formatAmount(2.4), '2,4');
+  assert.equal(S.formatAmount(0.25), '¼');
+  assert.equal(S.formatAmount(333), '335');
+});
+
+test('measures written as words count as one and take the right form', () => {
+  assert.equal(S.scaleLine('szklanka gorącej wody - 250 ml', 2), '2 szklanki gorącej wody - 500 ml');
+  assert.equal(S.scaleLine('Szklanka mąki', 5), '5 szklanek mąki');
+  assert.equal(S.scaleLine('szklanka mąki', 0.5), '½ szklanki mąki');
+  assert.equal(S.scaleLine('szczypta soli', 3), '3 szczypty soli');
+  assert.equal(S.scaleLine('ząbek czosnku', 1.5), '1½ ząbka czosnku');
+  assert.equal(S.scaleLine('- łyżka masła', 2), '- 2 łyżki masła');
+  assert.equal(S.scaleLine('a cup of flour', 2), '2 cups of flour');
+  assert.equal(S.scaleLine('A pinch of salt', 0.5), '½ pinch of salt');
+  assert.equal(S.scaleLine('una taza de arroz', 3), '3 tazas de arroz');
+  assert.equal(S.scaleLine('1 łyżeczka soli', 2), '2 łyżeczki soli');
+  assert.equal(S.scaleLine('2 łyżki oleju', 2.5), '5 łyżek oleju');
+  assert.equal(S.scaleLine('2 łyżki oleju', 11), '22 łyżki oleju');
+  assert.equal(S.scaleLine('1 jajko', 2), '2 jajka');
+  assert.equal(S.scaleLine('2 cups flour', 0.5), '1 cup flour');
+  assert.equal(S.scaleLine('1 cebula', 2), '2 cebula');
+  assert.equal(S.scaleLine('cebula', 2), 'cebula');
+  assert.equal(S.scaleLine('Spicchio di aglio 1', 2), 'Spicchio di aglio 2');
+  assert.equal(S.scaleLine('Aglio 1 spicchio', 3), 'Aglio 3 spicchi');
+  assert.equal(S.scaleLine('3 clove(s) of garlic', 2), '6 clove(s) of garlic');
+});
+
+test('titles lose a separator left at the end', () => {
+  assert.equal(S.titleOf({ title: '', url: 'https://example.com/a', meta: { title: 'Kapusta z grzybami |' } }), 'Kapusta z grzybami');
+  assert.equal(S.titleOf({ title: 'Leczo – ', url: 'https://example.com/a' }), 'Leczo');
+  assert.equal(S.titleOf({ title: 'Pierogi | Ania Gotuje', url: 'https://example.com/a' }), 'Pierogi | Ania Gotuje');
+  assert.equal(S.titleOf({ title: 'Kapusta z grzybami | AniaGotuje.pl', url: 'https://aniagotuje.pl/przepis/kapusta-z-grzybami' }), 'Kapusta z grzybami');
+  assert.equal(S.titleOf({ title: 'Leczo - Kwestia Smaku', url: 'https://www.kwestiasmaku.com/przepis/leczo' }), 'Leczo');
+  assert.equal(S.titleOf({ title: 'Easy pancakes | Good Food', url: 'https://www.bbcgoodfood.com/x', meta: { fetchedAt: 1, site: 'Good Food' } }), 'Easy pancakes');
+  assert.equal(S.titleOf({ title: 'Dificultad: bajo | Comensales: 4', url: 'https://canalcocina.es/x' }), 'Dificultad: bajo | Comensales: 4');
+  assert.equal(S.titleOf({ title: ' | ', url: 'https://example.com/a' }), 'example.com/a');
 });

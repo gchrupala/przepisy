@@ -33,7 +33,7 @@ let doc = S.loadDoc(storage);
 let saveFailed = !storage;
 
 const PREFS_KEY = 'przepisy:prefs';
-const prefs = { status: 'all', tag: '', lang: 'auto', ...readJson(PREFS_KEY) };
+const prefs = { status: 'all', tag: '', sort: 'added', lang: 'auto', ...readJson(PREFS_KEY) };
 
 // The interface language: chosen in settings ('pl' | 'en') or, with
 // 'auto', the browser's.
@@ -42,6 +42,21 @@ function applyLang() {
   document.documentElement.lang = getLang();
 }
 applyLang();
+
+// When each recipe was last opened on this device: { id: ms }. Kept apart
+// from the data, so opening a recipe does not start a sync.
+const OPENED_KEY = 'przepisy:opened';
+const openedAt = readJson(OPENED_KEY);
+
+function markOpened(id) {
+  openedAt[id] = Date.now();
+  for (const k of Object.keys(openedAt)) if (!doc.items.some((i) => i.id === k)) delete openedAt[k];
+  try {
+    storage?.setItem(OPENED_KEY, JSON.stringify(openedAt));
+  } catch {
+    // The order then lasts until the page closes.
+  }
+}
 
 const ui = {
   view: 'list', // 'list' | 'recipe' | 'settings'
@@ -53,6 +68,7 @@ const ui = {
   editBase: null, // the recipe form as it was when opened
   editNew: false, // a new recipe without a page: it goes when closed empty
   checked: new Set(), // ingredients and steps ticked off while cooking
+  scale: new Map(), // recipe id -> multiplier of the ingredient amounts, while the app is open
   wake: null, // the screen wake lock while it is held
   wantWake: false,
   toast: null, // { text, action, run }
@@ -363,7 +379,7 @@ function results() {
   const scoped = prefs.status === 'all' ? all : all.filter((i) => i.status === prefs.status);
   const tags = S.tagCounts(scoped);
   if (prefs.tag && !tags.some(([t]) => t === prefs.tag)) prefs.tag = '';
-  const items = S.filterItems(all, { query: ui.query, status: prefs.status, tag: prefs.tag });
+  const items = S.filterItems(all, { query: ui.query, status: prefs.status, tag: prefs.tag, sort: prefs.sort, openedAt });
   const pasted = pastedUrl();
   const known = pasted && S.findByUrl(doc, pasted);
 
@@ -376,6 +392,10 @@ function results() {
     `<button type="button" class="chip${on ? ' on' : ''}" aria-pressed="${on}" data-action="tag" data-value="${esc(value)}">${esc(label)} <span class="count">${count}</span></button>`;
   const tagChips = tags.map(([t, n]) => chip(t, `#${t}`, n, prefs.tag === t)).join('');
   const filters = tagChips ? `<div class="chips" aria-label="${t('filters')}">${tagChips}</div>` : '';
+  const sortOption = (key, label) => `<option value="${key}"${prefs.sort === key ? ' selected' : ''}>${label}</option>`;
+  const sorter = all.length > 1
+    ? `<label class="sort">${t('sortLabel')} <select id="sort" data-action="sort">${sortOption('added', t('sortAdded'))}${sortOption('opened', t('sortOpened'))}</select></label>`
+    : '';
 
   let body;
   if (items.length) body = `<ul class="items">${items.map(itemView).join('')}</ul>`;
@@ -386,7 +406,7 @@ function results() {
   const addHint = pasted
     ? `<p class="add-hint">${known ? t('hintKnown') : t('hintLink')}</p>`
     : '';
-  return `${addHint}<div class="tabs" role="tablist">${tabs}</div>${filters}${body}`;
+  return `${addHint}<div class="tabs" role="tablist">${tabs}</div>${filters}${sorter}${body}`;
 }
 
 // While typing in the search field only the results change, so the field
@@ -451,11 +471,41 @@ function recipeNotice(item) {
   return `<p class="notice">${t('noRecipeFound', meta.via === 'page')}</p>`;
 }
 
-function checklist(id, kind, sections) {
+// A recipe line as HTML: escaped, with the bold of the site kept.
+const rich = (text) => S.textSpans(text).map((p) => (p.strong ? `<strong>${esc(p.text)}</strong>` : esc(p.text))).join('');
+
+// The number of people (when the recipe gives one) or a multiplier, with
+// buttons to change it. The ingredient amounts follow.
+function scaler(recipe, factor) {
+  const n = S.servingsOf(recipe.yields);
+  const base = n && n.min === n.max ? n.min : null;
+  const value = base ? t('scaledServings', Math.round(base * factor)) : t('scaledFactor', esc(S.formatAmount(factor)));
+  const btn = (step, label, text) => `<button class="icon-btn small" type="button" data-action="scale" data-step="${step}" aria-label="${label}" title="${label}">${text}</button>`;
+  return `<div class="scaler" role="group" aria-label="${t('amounts')}">${btn(-1, base ? t('fewerPeople') : t('less'), '−')}<span aria-live="polite">${value}</span>${btn(1, base ? t('morePeople') : t('more'), '+')}</div>`;
+}
+
+function rescale(id, step) {
+  const recipe = S.recipeOf(itemById(id));
+  if (!recipe) return;
+  const factor = ui.scale.get(id) ?? 1;
+  const n = S.servingsOf(recipe.yields);
+  let next;
+  if (n && n.min === n.max) {
+    next = Math.max(1, Math.round(n.min * factor) + step) / n.min;
+  } else {
+    const i = S.FACTORS.findIndex((f) => f >= factor - 1e-9);
+    next = S.FACTORS[Math.min(S.FACTORS.length - 1, Math.max(0, (i < 0 ? S.FACTORS.length - 1 : i) + step))];
+  }
+  if (next === 1) ui.scale.delete(id);
+  else ui.scale.set(id, next);
+  render();
+}
+
+function checklist(id, kind, sections, lineOf = (line) => line) {
   let n = 0;
   return sections
     .map((s, g) => {
-      const head = s.name ? `<h3>${esc(s.name)}</h3>` : '';
+      const head = s.name ? `<h3>${rich(s.name)}</h3>` : '';
       const start = n + 1;
       const items = s.items
         .map((text, i) => {
@@ -463,8 +513,8 @@ function checklist(id, kind, sections) {
           const key = `${id}|${kind}|${g}|${i}`;
           const box = `<input type="checkbox" data-check="${esc(key)}"${ui.checked.has(key) ? ' checked' : ''}>`;
           return kind === 'i'
-            ? `<li><label class="tick">${box}<span>${esc(text)}</span></label></li>`
-            : `<li><label class="step">${box}<span class="step-num" aria-hidden="true">${n}</span><span>${esc(text)}</span></label></li>`;
+            ? `<li><label class="tick">${box}<span>${rich(lineOf(text))}</span></label></li>`
+            : `<li><label class="step">${box}<span class="step-num" aria-hidden="true">${n}</span><span>${rich(text)}</span></label></li>`;
         })
         .join('');
       return `${head}<${kind === 'i' ? 'ul' : `ol start="${start}"`} class="checklist">${items}</${kind === 'i' ? 'ul' : 'ol'}>`;
@@ -480,14 +530,16 @@ function recipeView(item) {
   const tags = item.tags.length
     ? `<div class="item-tags">${item.tags.map((t) => `<span class="tag">#${esc(t)}</span>`).join('')}</div>`
     : '';
+  const factor = ui.scale.get(item.id) ?? 1;
+  const decimal = /^en/i.test(item.meta?.lang ?? '') ? '.' : ',';
   const ingredients = recipe?.ingredients.length
-    ? `<section class="part"><h2>${t('ingredients')}</h2>${checklist(item.id, 'i', recipe.ingredients)}</section>`
+    ? `<section class="part"><div class="part-head"><h2>${t('ingredients')}</h2>${scaler(recipe, factor)}</div>${checklist(item.id, 'i', recipe.ingredients, (line) => S.scaleLine(line, factor, decimal))}</section>`
     : '';
   const steps = recipe?.steps.length ? `<section class="part"><h2>${t('method')}</h2>${checklist(item.id, 's', recipe.steps)}</section>` : '';
   const hasContent = recipe && (recipe.ingredients.length || recipe.steps.length || recipe.yields);
   const wake =
     'wakeLock' in navigator && hasContent
-      ? `<button class="btn${ui.wake ? ' on' : ''}" type="button" data-action="wake" aria-pressed="${Boolean(ui.wake)}">${ICON.sun} ${t('keepAwake')}</button>`
+      ? `<button class="icon-btn${ui.wake ? ' wake-on' : ''}" type="button" data-action="wake" aria-pressed="${Boolean(ui.wake)}" aria-label="${t('keepAwake')}" title="${ui.wake ? t('wakeOn') : t('keepAwake')}">${ICON.sun}</button>`
       : '';
   const sourceKind = item.url ? S.recipeSource(item) : recipe && 'own';
   const source = sourceKind ? t(`source_${sourceKind}`) : '';
@@ -496,7 +548,7 @@ function recipeView(item) {
     : t('ownRecipe');
   return `<header class="bar">
       <button class="icon-btn" type="button" data-action="back" aria-label="${t('back')}" title="${t('back')}">${ICON.back}</button>
-      <div class="bar-actions">${syncButton()}<button class="icon-btn" type="button" data-action="share" aria-label="${t('share')}" title="${t('share')}">${ICON.share}</button><button class="icon-btn" type="button" data-action="edit" aria-label="${t('titleTagsNote')}" title="${t('titleTagsNote')}">${ICON.edit}</button></div>
+      <div class="bar-actions">${wake}${syncButton()}<button class="icon-btn" type="button" data-action="share" aria-label="${t('share')}" title="${t('share')}">${ICON.share}</button><button class="icon-btn" type="button" data-action="edit" aria-label="${t('titleTagsNote')}" title="${t('titleTagsNote')}">${ICON.edit}</button></div>
     </header>
     ${notices()}
     <article class="recipe" data-id="${esc(item.id)}">
@@ -512,13 +564,13 @@ function recipeView(item) {
       <div class="row recipe-actions">
         <button class="btn${done ? ' on' : ''}" type="button" data-action="toggle" aria-pressed="${done}">${ICON.check} ${t('tried')}</button>
         <button class="btn" type="button" data-action="edit-recipe">${hasContent ? t('correctRecipe') : t('enterRecipe')}</button>
-        ${wake}
       </div>
       ${source ? `<p class="field-note">${source}</p>` : ''}
     </article>`;
 }
 
 function openRecipe(id) {
+  markOpened(id);
   ui.view = 'recipe';
   ui.recipeId = id;
   pushNav('recipe', { id });
@@ -1093,6 +1145,9 @@ function onClick(e) {
         render();
       }
       break;
+    case 'scale':
+      rescale(id, Number(el.dataset.step));
+      break;
     case 'wake':
       setWake(!ui.wake).then(render);
       break;
@@ -1210,6 +1265,12 @@ app.addEventListener('change', (e) => {
   if (key) {
     if (e.target.checked) ui.checked.add(key);
     else ui.checked.delete(key);
+    return;
+  }
+  if (e.target.dataset.action === 'sort') {
+    prefs.sort = e.target.value === 'opened' ? 'opened' : 'added';
+    savePrefs();
+    renderResults();
     return;
   }
   if (e.target.dataset.action === 'import' && e.target.files?.[0]) importDoc(e.target.files[0]);
