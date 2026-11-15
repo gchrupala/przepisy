@@ -75,6 +75,7 @@ const ui = {
   editIntro: '', // text above the edit form, e.g. after sharing
   editBase: null, // the recipe form as it was when opened
   editNew: false, // a new recipe without a page: it goes when closed empty
+  editFocus: '', // the field to start in, e.g. 'note'
   checked: new Set(), // ingredients and steps ticked off while cooking
   scale: new Map(), // recipe id -> multiplier of the ingredient amounts, while the app is open
   wake: null, // the screen wake lock while it is held
@@ -578,7 +579,7 @@ function recipeView(item) {
       <p class="recipe-source">${origin}</p>
       ${facts ? `<p class="recipe-facts">${esc(facts)}</p>` : ''}
       ${tags}
-      ${item.note ? `<p class="item-note">${esc(item.note)}</p>` : ''}
+      ${noteButton(item)}
       ${recipeNotice(item)}
       ${ingredients}
       ${steps}
@@ -589,6 +590,15 @@ function recipeView(item) {
       </div>
       ${source ? `<p class="field-note">${source}</p>` : ''}
     </article>`;
+}
+
+// The note, or a button to add one, where the note is shown: both open the
+// edit form in the note field.
+function noteButton(item) {
+  if (!item.note) {
+    return `<button class="btn small add-note" type="button" data-action="edit-note">${ICON.edit} ${t('addNote')}</button>`;
+  }
+  return `<button class="note-btn" type="button" data-action="edit-note" title="${t('editNote')}"><span class="item-note">${esc(item.note)}</span>${ICON.edit}</button>`;
 }
 
 function openRecipe(id) {
@@ -641,8 +651,12 @@ function renderSheet() {
   sheet.innerHTML = ui.editMode === 'recipe' ? recipeForm(item) : itemForm(item);
   if (!sheet.open) {
     sheet.showModal();
+    const field = ui.editFocus && sheet.querySelector(`#f-${ui.editFocus}`);
     if (ui.editNew) sheet.querySelector('#r-title')?.focus();
-    else if (ui.editIntro) sheet.querySelector('#f-tags')?.focus();
+    else if (field) {
+      field.focus();
+      field.setSelectionRange?.(field.value.length, field.value.length);
+    } else if (ui.editIntro) sheet.querySelector('#f-tags')?.focus();
     else sheet.querySelector('.sheet-head button')?.focus();
   }
 }
@@ -705,10 +719,11 @@ function recipeForm(item) {
   </form>`;
 }
 
-function openEdit(id, mode = 'item', intro = '', isNew = false) {
+function openEdit(id, mode = 'item', intro = '', isNew = false, focus = '') {
   ui.editId = id;
   ui.editMode = mode;
   ui.editIntro = intro;
+  ui.editFocus = focus;
   ui.editBase = mode === 'recipe' ? S.recipeToForm(S.recipeOf(itemById(id))) : null;
   ui.confirmDelete = false;
   ui.editNew = isNew;
@@ -762,6 +777,7 @@ function closeSheet() {
   }
   ui.editId = null;
   ui.editIntro = '';
+  ui.editFocus = '';
   ui.editBase = null;
   ui.confirmDelete = false;
   if (navDepth() && history.state?.screen === 'edit') history.back();
@@ -957,6 +973,7 @@ window.addEventListener('popstate', () => {
     ui.editNew = false;
     ui.editId = null;
     ui.editIntro = '';
+    ui.editFocus = '';
     ui.editBase = null;
   }
   if (screen === 'list') ui.view = 'list';
@@ -1210,6 +1227,9 @@ function onClick(e) {
       break;
     case 'edit':
       openEdit(ui.recipeId);
+      break;
+    case 'edit-note':
+      openEdit(ui.recipeId, 'item', '', false, 'note');
       break;
     case 'share':
       shareRecipe(itemById(ui.recipeId));

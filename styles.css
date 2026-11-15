@@ -466,6 +466,49 @@ textarea {
   white-space: pre-wrap;
 }
 
+.add-note {
+  gap: 6px;
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.add-note svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.note-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.note-btn .item-note {
+  flex: 1;
+  margin: 0;
+}
+
+.note-btn:hover .item-note {
+  border-left-color: var(--accent);
+}
+
+.note-btn svg {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.1rem;
+  color: var(--muted);
+}
+
 .pasted details {
   border-top: 0;
 }
