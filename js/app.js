@@ -433,7 +433,7 @@ const imageTag = (item, cls) =>
 // What the list says about a recipe that has none yet.
 function recipeState(item) {
   if (S.recipeOf(item)) return '';
-  if (!item.url) return t('stateBlank');
+  if (!item.url && !item.sourceText) return t('stateBlank');
   if (!item.meta) return t('stateWaiting');
   return item.meta.error ? t('stateFailed') : t('stateNone');
 }
@@ -441,7 +441,8 @@ function recipeState(item) {
 function itemView(item) {
   const recipe = S.recipeOf(item);
   const done = item.status === 'done';
-  const info = [esc(item.url ? S.siteOf(item) : t('ownRecipeShort')), esc(factsOf(recipe)), recipeState(item), done ? t('triedShort') : ''].filter(Boolean).join(' · ');
+  const origin = item.url ? S.siteOf(item) : item.sourceText ? t('textRecipeShort') : t('ownRecipeShort');
+  const info = [esc(origin), esc(factsOf(recipe)), recipeState(item), done ? t('triedShort') : ''].filter(Boolean).join(' · ');
   const tags = item.tags.length
     ? `<div class="item-tags">${item.tags.map((t) => `<button type="button" class="tag" data-action="tag" data-value="${esc(t)}">#${esc(t)}</button>`).join('')}</div>`
     : '';
@@ -473,10 +474,15 @@ function recipeNotice(item) {
     return `<p class="notice">${t('pageRecipeHidden')} ${actionLink('recipe-reset')(t('showAgain'))}</p>`;
   }
   if (recipe) return '';
-  if (!item.url) return `<p class="notice">${t('recipeBlank')} ${actionLink('edit-recipe')(t('fillIn'))}</p>`;
-  if (!meta) return `<p class="notice">${syncConfig ? t('recipeSoon') : t('recipeNeedsSync', actionLink('settings'))}</p>`;
-  if (meta.error) return `<p class="notice">${t('fetchFailed', esc(meta.error), (meta.attempts ?? 1) < 3)}</p>`;
-  return `<p class="notice">${t('noRecipeFound', meta.via === 'page')}</p>`;
+  if (!item.url && !item.sourceText) return `<p class="notice">${t('recipeBlank')} ${actionLink('edit-recipe')(t('fillIn'))}</p>`;
+  // A recipe pasted as text is read like a page, with its own wording.
+  const text = !item.url;
+  if (!meta) {
+    const notice = syncConfig ? t(text ? 'textSoon' : 'recipeSoon') : t(text ? 'textNeedsSync' : 'recipeNeedsSync', actionLink('settings'));
+    return `<p class="notice">${notice}</p>`;
+  }
+  if (meta.error) return `<p class="notice">${t(text ? 'textFailed' : 'fetchFailed', esc(meta.error), (meta.attempts ?? 1) < 3)}</p>`;
+  return `<p class="notice">${t(text ? 'noRecipeInText' : 'noRecipeFound', meta.via === 'page')}</p>`;
 }
 
 // A recipe line as HTML: escaped, with the bold of the site kept.
@@ -549,11 +555,18 @@ function recipeView(item) {
     'wakeLock' in navigator && hasContent
       ? `<button class="icon-btn${ui.wake ? ' wake-on' : ''}" type="button" data-action="wake" aria-pressed="${Boolean(ui.wake)}" aria-label="${t('keepAwake')}" title="${ui.wake ? t('wakeOn') : t('keepAwake')}">${ICON.sun}</button>`
       : '';
-  const sourceKind = item.url ? S.recipeSource(item) : recipe && 'own';
+  const read = S.recipeSource(item);
+  const sourceKind = item.url ? read : item.sourceText ? (read === 'claude' || read === 'mistral' ? `text_${read}` : read) : recipe && 'own';
   const source = sourceKind ? t(`source_${sourceKind}`) : '';
   const origin = item.url
     ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(S.siteOf(item))} ${ICON.out}</a>${author}`
-    : t('ownRecipe');
+    : item.sourceText
+      ? t('textRecipe')
+      : t('ownRecipe');
+  // The pasted text: open while there is no recipe from it yet.
+  const pasted = item.sourceText
+    ? `<section class="part pasted"><details id="pasted-text"${recipe ? '' : ' open'}><summary>${t('pastedText')}</summary><p class="pasted-text">${esc(item.sourceText)}</p></details></section>`
+    : '';
   return `<header class="bar">
       <button class="icon-btn" type="button" data-action="back" aria-label="${t('back')}" title="${t('back')}">${ICON.back}</button>
       <div class="bar-actions">${wake}${syncButton()}<button class="icon-btn" type="button" data-action="share" aria-label="${t('share')}" title="${t('share')}">${ICON.share}</button><button class="icon-btn" type="button" data-action="edit" aria-label="${t('titleTagsNote')}" title="${t('titleTagsNote')}">${ICON.edit}</button></div>
@@ -569,6 +582,7 @@ function recipeView(item) {
       ${recipeNotice(item)}
       ${ingredients}
       ${steps}
+      ${pasted}
       <div class="row recipe-actions">
         <button class="btn${done ? ' on' : ''}" type="button" data-action="toggle" aria-pressed="${done}">${ICON.check} ${t('tried')}</button>
         <button class="btn" type="button" data-action="edit-recipe">${hasContent ? t('correctRecipe') : t('enterRecipe')}</button>
@@ -1010,6 +1024,23 @@ function addLink(input, { fromShare = false } = {}) {
   return res;
 }
 
+// A recipe pasted or shared as text, without a link: GitHub reads the
+// recipe out of it, as out of a page.
+function addTextRecipe(text, { fromShare = false } = {}) {
+  const { item, existed } = S.addText(doc, text, Date.now());
+  if (!existed) {
+    sync.metaChecks = 0;
+    persist();
+    if (prefs.status === 'done') prefs.status = 'all';
+  }
+  prefs.tag = '';
+  savePrefs();
+  ui.query = '';
+  openRecipe(item.id);
+  if (fromShare) openEdit(item.id, 'item', existed ? t('alreadySaved') : t('saved'));
+  else toast(existed ? t('wasSaved') : t('savedToast'));
+}
+
 // A recipe without a page: it opens with the recipe form.
 function addManual() {
   const item = S.addManual(doc, {}, Date.now());
@@ -1029,7 +1060,12 @@ function takeSharedLink() {
   } catch {
     // The parameters then stay in the address bar; harmless.
   }
+  // Apps that share a message put its first line in the title, or not.
+  const title = params.get('title') ?? '';
+  const body = params.get('text') ?? '';
+  const text = title && !body.includes(title) ? `${title}\n${body}` : body;
   if (shared) addLink(shared, { fromShare: true });
+  else if (S.isRecipeText(text)) addTextRecipe(text, { fromShare: true });
   else toast(t('noLinkShared'));
 }
 
@@ -1149,6 +1185,7 @@ function onClick(e) {
         .then((text) => {
           const shared = S.extractShared({ text });
           if (shared) addLink(shared);
+          else if (S.isRecipeText(text)) addTextRecipe(text);
           else toast(t('noLinkClipboard'));
         })
         .catch(() => toast(t('noClipboard')));
@@ -1318,14 +1355,18 @@ app.addEventListener('submit', (e) => {
 });
 
 // A link pasted into the search field is added at once when nothing else
-// was typed there.
+// was typed there; so is a recipe pasted as text, without a link.
 app.addEventListener('paste', (e) => {
   if (e.target.id !== 'q' || e.target.value.trim()) return;
   const text = e.clipboardData?.getData('text') ?? '';
   const shared = S.extractShared({ text });
-  if (!shared || text.trim().split(/\s+/).length > 12) return;
-  e.preventDefault();
-  addLink(shared);
+  if (shared && text.trim().split(/\s+/).length <= 12) {
+    e.preventDefault();
+    addLink(shared);
+  } else if (!shared && S.isRecipeText(text)) {
+    e.preventDefault();
+    addTextRecipe(text);
+  }
 });
 
 sheet.addEventListener('submit', (e) => {

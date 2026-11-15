@@ -76,10 +76,11 @@ const pl = {
   stateFailed: 'nie udało się pobrać',
   stateNone: 'bez przepisu',
   ownRecipeShort: 'własny przepis',
+  textRecipeShort: 'z tekstu',
   triedShort: 'wypróbowany',
   emptyTitle: 'Nie ma jeszcze przepisów.',
   emptyBody: (link) =>
-    `Udostępnij stronę z przepisem z innej aplikacji albo wklej link w pole powyżej. Aplikacja zapisze adres, a GitHub wyciągnie ze strony porcje, składniki i kroki. Przepis bez strony wpiszesz przyciskiem +. Sposoby dodawania i połączenie z GitHubem są w ${link('ustawieniach')}.`,
+    `Udostępnij stronę z przepisem z innej aplikacji albo wklej link w pole powyżej. Aplikacja zapisze adres, a GitHub wyciągnie ze strony porcje, składniki i kroki. Tak samo możesz wkleić albo udostępnić sam tekst przepisu, np. z wiadomości. Przepis bez strony wpiszesz przyciskiem +. Sposoby dodawania i połączenie z GitHubem są w ${link('ustawieniach')}.`,
 
   // one recipe
   pageRecipeHidden: 'Przepis ze strony jest ukryty.',
@@ -87,6 +88,15 @@ const pl = {
   recipeBlank: 'Ten przepis jest jeszcze pusty.',
   fillIn: 'Wpisz go',
   recipeSoon: 'Przepis pojawi się za minutę lub dwie, gdy GitHub pobierze stronę.',
+  textSoon: 'Składniki i kroki pojawią się za minutę lub dwie, gdy GitHub odczyta tekst.',
+  textNeedsSync: (link) =>
+    `Przepis z tekstu odczytuje GitHub. Połącz aplikację z GitHubem w ${link('ustawieniach')} albo wpisz przepis sam.`,
+  textFailed: (error, again) =>
+    `Nie udało się odczytać tekstu (${error}).${again ? ' GitHub spróbuje jeszcze raz za dzień.' : ''} Możesz wpisać przepis sam.`,
+  noRecipeInText: (noModel) =>
+    noModel
+      ? 'Tekst czeka na odczyt: model językowy jest wyłączony (brak klucza w repozytorium). Możesz wpisać przepis sam.'
+      : 'W tekście nie znaleziono przepisu. Możesz wpisać go sam.',
   recipeNeedsSync: (link) =>
     `Przepis ze strony pobiera GitHub. Połącz aplikację z GitHubem w ${link('ustawieniach')} albo wpisz przepis sam.`,
   fetchFailed: (error, again) =>
@@ -98,6 +108,9 @@ const pl = {
   source_mistral: 'Przepis odczytany z tekstu strony przez model Mistral; może mieć błędy.',
   source_hand: 'Przepis poprawiony ręcznie.',
   source_own: 'Przepis wpisany ręcznie.',
+  source_text_claude: 'Przepis odczytany z wklejonego tekstu przez model Claude; może mieć błędy.',
+  source_text_mistral: 'Przepis odczytany z wklejonego tekstu przez model Mistral; może mieć błędy.',
+  pastedText: 'Wklejony tekst',
   ingredients: 'Składniki',
   method: 'Przygotowanie',
   keepAwake: 'Nie wygaszaj ekranu',
@@ -110,6 +123,7 @@ const pl = {
   less: 'Mniej',
   more: 'Więcej',
   ownRecipe: 'Własny przepis',
+  textRecipe: 'Przepis z wklejonego tekstu',
   titleTagsNote: 'Tytuł, tagi i notatka',
   correctRecipe: 'Popraw przepis',
   enterRecipe: 'Wpisz przepis',
@@ -206,9 +220,9 @@ const pl = {
   wasSaved: 'Ten przepis już był zapisany.',
   savedToast: 'Zapisano.',
   open: 'Otwórz',
-  noLinkShared: 'W udostępnionym tekście nie było linku.',
-  noLinkClipboard: 'W schowku nie ma linku.',
-  noClipboard: 'Przeglądarka nie dała dostępu do schowka. Wklej link w pole.',
+  noLinkShared: 'W udostępnionym tekście nie było linku ani przepisu.',
+  noLinkClipboard: 'W schowku nie ma linku ani przepisu.',
+  noClipboard: 'Przeglądarka nie dała dostępu do schowka. Wklej link albo przepis w pole.',
   deleted: 'Usunięto.',
   undo: 'Cofnij',
 };
@@ -271,10 +285,11 @@ const en = {
   stateFailed: 'could not be fetched',
   stateNone: 'no recipe',
   ownRecipeShort: 'own recipe',
+  textRecipeShort: 'from text',
   triedShort: 'tried',
   emptyTitle: 'No recipes yet.',
   emptyBody: (link) =>
-    `Share a recipe page from another app or paste a link into the field above. The app saves the address, and GitHub extracts the servings, ingredients and steps from the page. A recipe without a page can be entered with the + button. Ways of adding recipes and the connection to GitHub are in ${link('settings')}.`,
+    `Share a recipe page from another app or paste a link into the field above. The app saves the address, and GitHub extracts the servings, ingredients and steps from the page. You can paste or share the text of a recipe in the same way, e.g. from a message. A recipe without a page can be entered with the + button. Ways of adding recipes and the connection to GitHub are in ${link('settings')}.`,
 
   // one recipe
   pageRecipeHidden: 'The recipe from the page is hidden.',
@@ -282,6 +297,15 @@ const en = {
   recipeBlank: 'This recipe is still empty.',
   fillIn: 'Enter it',
   recipeSoon: 'The recipe will appear in a minute or two, once GitHub fetches the page.',
+  textSoon: 'The ingredients and steps will appear in a minute or two, once GitHub reads the text.',
+  textNeedsSync: (link) =>
+    `GitHub reads the recipe from the text. Connect the app to GitHub in ${link('settings')}, or enter the recipe yourself.`,
+  textFailed: (error, again) =>
+    `The text could not be read (${error}).${again ? ' GitHub will try again in a day.' : ''} You can enter the recipe yourself.`,
+  noRecipeInText: (noModel) =>
+    noModel
+      ? 'The text is waiting to be read: the language model is off (no key in the repository). You can enter the recipe yourself.'
+      : 'No recipe was found in the text. You can enter it yourself.',
   recipeNeedsSync: (link) =>
     `GitHub fetches the recipe from the page. Connect the app to GitHub in ${link('settings')}, or enter the recipe yourself.`,
   fetchFailed: (error, again) =>
@@ -293,6 +317,9 @@ const en = {
   source_mistral: 'Recipe read from the text of the page by the Mistral model; it may contain mistakes.',
   source_hand: 'Recipe corrected by hand.',
   source_own: 'Recipe written by hand.',
+  source_text_claude: 'Recipe read from the pasted text by the Claude model; it may contain mistakes.',
+  source_text_mistral: 'Recipe read from the pasted text by the Mistral model; it may contain mistakes.',
+  pastedText: 'Pasted text',
   ingredients: 'Ingredients',
   method: 'Method',
   keepAwake: 'Keep screen on',
@@ -305,6 +332,7 @@ const en = {
   less: 'Less',
   more: 'More',
   ownRecipe: 'Own recipe',
+  textRecipe: 'Recipe from pasted text',
   titleTagsNote: 'Title, tags and note',
   correctRecipe: 'Edit recipe',
   enterRecipe: 'Enter recipe',
@@ -401,9 +429,9 @@ const en = {
   wasSaved: 'This recipe was already saved.',
   savedToast: 'Saved.',
   open: 'Open',
-  noLinkShared: 'There was no link in the shared text.',
-  noLinkClipboard: 'There is no link on the clipboard.',
-  noClipboard: 'The browser did not allow access to the clipboard. Paste the link into the field.',
+  noLinkShared: 'There was no link or recipe in the shared text.',
+  noLinkClipboard: 'There is no link or recipe on the clipboard.',
+  noClipboard: 'The browser did not allow access to the clipboard. Paste the link or recipe into the field.',
   deleted: 'Deleted.',
   undo: 'Undo',
 };

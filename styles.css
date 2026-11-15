@@ -466,6 +466,17 @@ textarea {
   white-space: pre-wrap;
 }
 
+.pasted details {
+  border-top: 0;
+}
+
+.pasted-text {
+  margin: 0 0 14px;
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .item-tags {
   display: flex;
   flex-wrap: wrap;

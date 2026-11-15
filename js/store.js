@@ -7,7 +7,9 @@
 // Item:
 //   id, url ('' for a recipe typed in by hand without a page), title (typed
 //   in by hand, may be ''), sharedTitle (the title that came with a shared
-//   address, usually the title of the page, may be ''), note, tags [string],
+//   address, usually the title of the page, may be ''), sourceText (only on a
+//   recipe pasted as text: the text, which the Action reads into meta like a
+//   page), note, tags [string],
 //   status ('todo' | 'done' = tried), addedAt, updatedAt, doneAt (ms or null),
 //   recipe (optional): the recipe as corrected by hand; shown instead of
 //     meta.recipe,
@@ -26,6 +28,7 @@ export const STATUSES = ['todo', 'done'];
 
 const MAX_TAGS = 20;
 const MAX_TEXT = 2000;
+const MAX_SOURCE = 20000;
 const MAX_LINES = 120;
 
 export const emptyDoc = () => ({ przepisy: DOC_VERSION, items: [], tombstones: {} });
@@ -564,10 +567,41 @@ export function addManual(doc, { title = '', note = '', tags = [], recipe = null
   return item;
 }
 
+// Whether a text without a link is worth saving as a recipe: a few lines at
+// least (a title, ingredients, steps), not a word typed into the search.
+export function isRecipeText(text) {
+  return String(text ?? '').split('\n').filter((l) => l.trim()).length >= 3;
+}
+
+// Adds a recipe pasted as text. The first line stands for the title until
+// the Action reads the recipe out of the text. The same text pasted again
+// gives the recipe saved before. Returns { item, existed }.
+export function addText(doc, text, now, random) {
+  const source = String(text ?? '').replace(/\r\n?/g, '\n').trim().slice(0, MAX_SOURCE);
+  const existing = doc.items.find((i) => i.sourceText === source);
+  if (existing) return { item: existing, existed: true };
+  const first = source.split('\n').find((l) => l.trim()) ?? '';
+  const item = {
+    id: newId(now, random),
+    url: '',
+    title: '',
+    sharedTitle: first.trim().replace(/:$/, '').slice(0, 300),
+    note: '',
+    tags: [],
+    status: 'todo',
+    addedAt: now,
+    updatedAt: now,
+    doneAt: null,
+    sourceText: source,
+  };
+  doc.items.push(item);
+  return { item, existed: false };
+}
+
 // A recipe without a page and with nothing typed in yet (a new one that
 // was closed at once).
 export const isBlank = (item) =>
-  !item.url && !item.title && !item.note && !item.tags.length && !(item.recipe && parseRecipe(item.recipe));
+  !item.url && !item.sourceText && !item.title && !item.note && !item.tags.length && !(item.recipe && parseRecipe(item.recipe));
 
 // Changes the fields in patch that differ; stamps updatedAt when anything
 // changed. patch.recipe = null removes the correction. Returns the item or
@@ -657,7 +691,7 @@ function haystack(item) {
   const r = recipeOf(item);
   const lines = (sections) => (sections ?? []).flatMap((s) => [s.name, ...s.items]);
   return fold(
-    [item.title, item.sharedTitle, item.url, domainOf(item.url), item.note, item.tags.join(' '), m.title, m.description, m.site, m.author, r?.yields, ...lines(r?.ingredients)]
+    [item.title, item.sharedTitle, item.url, item.sourceText, domainOf(item.url), item.note, item.tags.join(' '), m.title, m.description, m.site, m.author, r?.yields, ...lines(r?.ingredients)]
       .filter(Boolean)
       .join(' \n '),
   );
@@ -744,6 +778,7 @@ function parseItem(x) {
     doneAt: x.status === 'done' ? num(x.doneAt) : null,
   };
   // An empty correction (no lines at all) is kept: it hides the page recipe.
+  if (typeof x.sourceText === 'string' && x.sourceText.trim()) item.sourceText = x.sourceText.slice(0, MAX_SOURCE);
   if (isObj(x.recipe)) item.recipe = parseRecipe(x.recipe) ?? { ingredients: [], steps: [] };
   if (meta) item.meta = meta;
   return item;
@@ -869,4 +904,4 @@ export function stableJson(value) {
 }
 
 // Recipes still waiting for the Action.
-export const waitingForMeta = (doc) => doc.items.some((i) => i.url && !i.meta);
+export const waitingForMeta = (doc) => doc.items.some((i) => (i.url || i.sourceText) && !i.meta);

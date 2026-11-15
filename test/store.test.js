@@ -482,3 +482,35 @@ test('titles lose a separator left at the end', () => {
   assert.equal(S.titleOf({ title: 'Dificultad: bajo | Comensales: 4', url: 'https://canalcocina.es/x' }), 'Dificultad: bajo | Comensales: 4');
   assert.equal(S.titleOf({ title: ' | ', url: 'https://example.com/a' }), 'example.com/a');
 });
+
+test('a recipe pasted as text waits for the Action, like a page', () => {
+  const text = 'Moist chocolate cake\r\n\r\ningredients:\nsugar: one cup (200 gr)\nPinch of salt\n\nmix dry ingredients';
+  assert.equal(S.isRecipeText(text), true);
+  assert.equal(S.isRecipeText('pierogi ruskie'), false);
+  assert.equal(S.isRecipeText('a\n\nb'), false);
+
+  const doc = S.emptyDoc();
+  const { item, existed } = S.addText(doc, text, min(0), rnd);
+  assert.equal(existed, false);
+  assert.equal(item.url, '');
+  assert.equal(item.title, '');
+  assert.equal(item.sourceText.includes('\r'), false);
+  assert.equal(S.titleOf(item), 'Moist chocolate cake');
+  assert.equal(S.isBlank(item), false);
+  assert.equal(S.waitingForMeta(doc), true);
+  assert.equal(S.filterItems(doc.items, { query: 'salt' }).length, 1);
+  assert.equal(S.addText(doc, text, min(1), rnd).existed, true);
+  assert.equal(doc.items.length, 1);
+
+  // It survives saving; a recipe without the text gets no such field.
+  const saved = S.parseDoc(JSON.parse(JSON.stringify(doc)));
+  assert.equal(saved.items[0].sourceText, item.sourceText);
+  assert.equal('sourceText' in S.addManual(saved, {}, min(2), rnd), false);
+  assert.equal('sourceText' in S.parseDoc(JSON.parse(JSON.stringify(saved))).items[1], false);
+
+  // The Action reads it: its title and recipe win over the first line.
+  item.meta = { fetchedAt: min(3), title: 'Chocolate cake', via: 'mistral', recipe: PAGE_RECIPE };
+  assert.equal(S.waitingForMeta(doc), false);
+  assert.equal(S.titleOf(item), 'Chocolate cake');
+  assert.equal(S.recipeSource(item), 'mistral');
+});

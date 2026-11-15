@@ -9,7 +9,7 @@ Aplikacja webowa (PWA) do zbierania przepisów z sieci. Statyczne pliki w katalo
 - Wielkość tekstu (`prefs.text`: `normal`, `large`, `larger`) to `data-text` na `<html>`, które zmienia bazowy rozmiar czcionki (125%, 150%). Rozmiary tekstu w `styles.css` podawaj w `rem` albo `em`, nie w `px`, żeby rosły razem z nim.
 - `sw.js`: nowe pliki dopisz do `APP_FILES`; przy każdej zmianie plików aplikacji podbij `VERSION`. Usuwa tylko własne stare cache (prefiks `przepisy-app-`), bo inne aplikacje na gchrupala.github.io dzielą cache.
 - Przepis ze strony (`meta`, z `meta.recipe`) dopisuje skrypt `.github/scripts/przepisy_recipes.py` w gchrupala/app-data. Nie zmienia `updatedAt`; `meta` łączy się według `meta.fetchedAt`. Zmiana formatu `meta` wymaga zmian po obu stronach (`parseMeta`).
-- Przepis bez strony ma `url: ''` i tylko pole `recipe`; akcja go pomija (`needs_work`).
+- Przepis bez strony ma `url: ''`. Wpisany ręcznie ma tylko pole `recipe`; akcja go pomija (`needs_work`). Wklejony albo udostępniony jako tekst bez linku (`addText`, `isRecipeText`) ma pole `sourceText`; akcja czyta go modelem (`from_text`) i zapisuje wynik w `meta`, jak przy stronie.
 - Poprawka ręczna to pole `recipe` przepisu; łączy się według `updatedAt` i ma pierwszeństwo przed `meta.recipe`.
 - Tytuł: `title` to tytuł wpisany ręcznie, `sharedTitle` to tytuł, który przyszedł z udostępnionym adresem (zwykle tytuł strony). Wyświetlany jest `title`, potem `meta.title`, potem `sharedTitle` (`titleOf`).
 
